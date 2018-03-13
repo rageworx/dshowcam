@@ -1,0 +1,74 @@
+# Makefile for 'dshowcam' for MinGW-W64 + M-SYS
+# ----------------------------------------------------------------------
+# Written by Raphael Kim
+#
+
+GCC = gcc
+GPP = g++
+AR  = ar
+
+# Base PATH
+BASE_PATH = .
+LIB_PATH  = $(BASE_PATH)/lib
+SRC_PATH  = $(BASE_PATH)/src
+FSRC_PATH = $(SRC_PATH)/fl
+LOCI_PATH = /usr/local/include
+LOCL_PATH = /usr/local/lib
+
+# TARGET settings
+TARGET_PKG = dshowcam.a
+TARGET_DIR = ./lib/Release
+TARGET_OBJ = ./obj/Release
+LIBWIN32S  = -lkernel32 -lole32 -lstrmiids -ldxguid -ld2d1
+
+# DEFINITIONS
+DEFS  = -DUNICODE
+
+# Compiler optiops 
+COPTS  = -mms-bitfields -mwindows 
+
+# CC FLAG
+CFLAGS  = -I$(SRC_PATH) -I$(FSRC_PATH) 
+CFLAGS += -I$(LIB_PATH) -I$(LOCI_PATH) -Ires
+CFLAGS += $(DEFS)
+CFLAGS += $(COPTS)
+
+# LINK FLAG
+LFLAGS  =
+LFLAGS += -L$(LOCL_PATH)
+LFLAGS += -ljpeg
+LFLAGS += $(LIBWIN32S)
+
+# Sources
+SRCS = $(wildcard $(SRC_PATH)/*.cpp)
+
+# Make object targets from SRCS.
+OBJS = $(SRCS:$(SRC_PATH)/%.cpp=$(TARGET_OBJ)/%.o)
+
+.PHONY: prepare clean
+
+all: prepare clean continue packaging
+continue: $(TARGET_DIR)/$(TARGET_PKG)
+
+prepare:
+	@mkdir -p $(TARGET_DIR)
+	@mkdir -p $(TARGET_OBJ)
+
+clean:
+	@echo "Cleaning built targets ..."
+	@rm -rf $(TARGET_DIR)/$(TARGET_PKG)
+	@rm -rf $(TARGET_OBJ)/*.o
+
+packaging: $(TARGET_DIR)/$(TARGET_PKG)
+	@cp -rf LICENSE ${TARGET_DIR}
+	@cp -rf readme.md ${TARGET_DIR}
+	@cp $(SRC_PATH)/dshowcam.h $(TARGET_DIR)
+
+$(OBJS): $(TARGET_OBJ)/%.o: $(SRC_PATH)/%.cpp
+	@echo "Building $@ ... "
+	@$(GPP) $(CFLAGS) $(LFLAGS )-c $< -o $@
+
+$(TARGET_DIR)/$(TARGET_PKG): $(OBJS)
+	@echo "Generating $@ ..."
+	@$(AR) -q $@ $(TARGET_OBJ)/*.o
+	@echo "done."
