@@ -5,7 +5,11 @@
  * Microsoft Windows 32 or 64bit, supporting DirectShow.
  * MinGW-W64 ( it is designed to used 64bit compiler, but 32bit may OK. )
  * M-SYS ( bash with make )
- 
+
+## Recommends why MinGW-W64
+ * This library may requires to link related in directX.
+ * MinGW-W64 supports almost of this relative libraries.
+
 ## Supported CODEC
  * All CODECs belong to libuvc (https://int80k.com/libuvc/)
  * YUYV
