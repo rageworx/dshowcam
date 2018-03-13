@@ -10,13 +10,17 @@
  * This library may requires to link related in directX.
  * MinGW-W64 supports almost of this relative libraries.
 
+## M$VC 14 support
+ * Just open dshow.sln.
+ * MJPEG not supported now for difficult refer to libjpeg.
+
 ## Supported CODEC
  * All CODECs belong to libuvc (https://int80k.com/libuvc/)
  * YUYV
  * YUVY
  * RGB555
  * RGB565
- * MJPEG
+ * MJPEG ( for MinGW-W64 only now, M$VC sucks for reference to libjpeg ! )
  * ( Y8 -> Not works on DirectShow, DShow cannot handle this, so ignored )
 
 ## Status
