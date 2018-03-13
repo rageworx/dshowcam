@@ -1,5 +1,5 @@
 # dshowcam
- A stand-alone library for capturing continuous images for multiple Windows USB Camera, MinGW-W64.
+ A stand-alone library for capturing continuous images for multiple Windows USB Camera for MinGW-W64 and M$VC.
 
 ## Requires 
  * Microsoft Windows 32 or 64bit, supporting DirectShow.
@@ -11,8 +11,9 @@
  * MinGW-W64 supports almost of this relative libraries.
 
 ## M$VC 14 support
- * Just open dshow.sln.
+ * Just open dshowcam.sln.
  * MJPEG not supported now for difficult refer to libjpeg.
+ * M$VC sucks.
 
 ## Supported CODEC
  * All CODECs belong to libuvc (https://int80k.com/libuvc/)
