@@ -3,8 +3,8 @@
 
 ## Requires 
  * Microsoft Windows 32 or 64bit, supporting DirectShow.
- * MinGW-W64 ( it is designed to used 64bit compiler, but 32bit may OK. )
- * M-SYS ( bash with make )
+ * MinGW-W64 and M-SYS
+ * libraries : kernel32, ole32, strmiids, dxguid, d2d1
 
 ## Recommends why MinGW-W64
  * This library may requires to link related in directX.
@@ -17,7 +17,7 @@
  * RGB555
  * RGB565
  * MJPEG
- * Y8 ( But DirectShow cannot handle this, so ignored )
+ * ( Y8 -> Not works on DirectShow, DShow cannot handle this, so ignored )
 
 ## Status
  * Can handle multiple cameras
