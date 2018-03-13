@@ -4,10 +4,13 @@
 
 /*******************************************************************************
 **
-** "DirectShow windows camera control wrapping class" for MinGW-W64 and M$VC
+** "DirectShow windows YUVx USB camera control wrapping class"
+**                                                       for MinGW-W64 and M$VC
+**
 ** -----------------------------------------------------------------------------
 ** (C)Copyright 2017, 2018 Raphael Kim (rageworx@gmail.com, rage.kim@gmail.com)
 **
+** Made for : Continuous grabbing frame target ( Movie, or still )
 **
 *******************************************************************************/
 
@@ -15,6 +18,7 @@
 #include <vector>
 
 class DxDShowProperties;
+class SampleGrabberCallback;
 
 class DShowCamera
 {
@@ -22,19 +26,40 @@ class DShowCamera
         typedef enum
         {
             UNSUPPORTED = -1,
-            YUY2 = 0,
-            MJPG,
-            RGB555,
-            RGB565,
-            RGB888,
-            MAX
+            YUYV = 0,
+            YUVY,
+            ENCODE_TYPE_MAX
         }ENCODE_TYPE;
+
+        typedef enum
+        {
+            BRIGHTNESS = 0,
+            CONTRAST,
+            HUE,
+            SATURATION,
+            SHARPNESS,
+            GAMMA,
+            COLORENABLE,
+            WHITEBALANCE,
+            BACKLIGHTCOMPENSATION,
+            GAIN,
+
+            PAN,
+            TILT,
+            ROLL,
+            ZOOM,
+            EXPOSURE,
+            IRIS,
+            FOCUS,
+            SETTING_TYPE_MAX
+        }SETTING_TYPE;
 
         typedef struct
         {
             std::wstring name;
             std::wstring description;
-            std::wstring path;   // Device Path : "USB\\VID:..."
+            std::wstring path;   /// Device Path : "USB\\VID:..."
+            size_t realindex;
         }CameraDeviceInfo;
 
         typedef struct
@@ -43,6 +68,7 @@ class DShowCamera
             unsigned bpp;
             unsigned width;
             unsigned height;
+            size_t   realindex;
         }CameraConfigItem;
 
         typedef struct
@@ -52,7 +78,7 @@ class DShowCamera
             long maximum_val;
             long default_val;
             long val_step;
-            long flag; /// Auto or Manual.
+            long flag;
         }CameraSettingItem;
 
         typedef std::vector< CameraDeviceInfo > DeviceInfos;
@@ -69,40 +95,35 @@ class DShowCamera
 
     public:
         size_t ConfigSize();
-        bool   GetConfig( CameraConfigItem &cfg );
-        bool   GetConfig( ConfigItems &cfgs );
+        bool   GetCurrentConfig( CameraConfigItem &cfg );
+        bool   GetConfigs( ConfigItems &cfgs );
         bool   SelectDevice( size_t idx );
         bool   SelectConfig( size_t idx );
-        bool   ConnectPIN( bool useVMR9 = true );
-        bool   SetInteraceFrequncy( size_t idx );
+        bool   GetSetting( SETTING_TYPE settype, CameraSettingItem &item );
+        bool   ApplyManualSetting( SETTING_TYPE settype, long newVal );
+        bool   ApplyAutoSetting( SETTING_TYPE settype );
+        bool   StartPoll();
+        bool   StopPoll();
+        bool   GrabAFrame( unsigned char* &buff, unsigned &bufflen );
 
     protected:
         bool initDevice( size_t idx );
-        bool bindDevice( size_t idx );
+        bool connectDevice( size_t idx );
+        bool configureDevice();
         void readDeviceSettings();
         void resetDeviceSettings();
         void enumerateConfigs();
-        void allocVMR9();
-        bool doPolling();       /// Enables internal polling capture (thread)
 
     private:
-        DxDShowProperties*  dxdshowprop;
+        DxDShowProperties*  dxdsprop;
         DeviceInfos         camDevInfo;
         ConfigItems         cfgitems;
-        DeviceFreqs         interaceFreqs;
-        CameraSettingItem   setBrightness;
-        CameraSettingItem   setContrast;
-        CameraSettingItem   setHue;
-        CameraSettingItem   setSaturation;
-        CameraSettingItem   setSharpness;
-        CameraSettingItem   setGamma;
-        CameraSettingItem   setColorEnable;
-        CameraSettingItem   setWhiteBalance;
-        CameraSettingItem   setBacklightCompensation;
-        CameraSettingItem   setGain;
-        CameraSettingItem   setExposure;
-        CameraSettingItem   setFocus;
+        CameraSettingItem   settings[SETTING_TYPE_MAX];
         bool                bConfigured;
+        int                 currentcfgidx;
+
+    protected:
+        SampleGrabberCallback*  pSGCB;
 };
 
 #endif // __DSHOWCAM_H__
