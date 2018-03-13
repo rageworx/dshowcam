@@ -4,6 +4,7 @@
 ## Requires 
  * Microsoft Windows 32 or 64bit, supporting DirectShow.
  * MinGW-W64 ( it is designed to used 64bit compiler, but 32bit may OK. )
+ * M-SYS ( bash with make )
  
 ## Supported CODEC
  * All CODECs belong to libuvc (https://int80k.com/libuvc/)
@@ -18,3 +19,6 @@
  * Can handle multiple cameras
  * Can capturing continuous frames from multiple USB cameras.
  * Each different camera configuration availed.
+ 
+## How to build ?
+ * Do ```make -f Makefile.mingw``` at your bash.
