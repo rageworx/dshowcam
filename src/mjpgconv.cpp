@@ -1,3 +1,4 @@
+#ifndef _MSC_VER
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -201,3 +202,4 @@ unsigned mjpeg2rgb(void* in, unsigned sz, void** out,unsigned width, unsigned he
 	
     return true;
 }
+#endif /// of _MSC_VER

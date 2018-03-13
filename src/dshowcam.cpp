@@ -1,5 +1,11 @@
 #include <windows.h>
 #include <initguid.h>
+#ifdef _MSC_VER 
+// Why latest M$VC not supports qedit ? why ???
+#include "qeditimp.h"
+#else
+#include <qedit.h>
+#endif /// of _MSC_VER
 
 #include "dshowcam.h"
 #include "dshowcamtk.h"
@@ -17,6 +23,8 @@ DEFINE_GUID(MEDIASUBTYPE_Y8,0x20203859,0x0000,0x0010,\
                             0x80,0x00,0x000,0xAA,0x00,0x38,0x9B,0x71);
 #endif // MEDIASUBTYPE_Y8
 
+#ifndef _MSC_VER
+// M$VC may not allow to define these, ha !
 #ifndef CLSID_SampleGrabber
 DEFINE_GUID(CLSID_SampleGrabber,0xc1f400a0,0x3f08,0x11d3, \
                                 0x9f,0x0b,0x00,0x60,0x08,0x03,0x9e,0x37);
@@ -26,6 +34,7 @@ DEFINE_GUID(CLSID_SampleGrabber,0xc1f400a0,0x3f08,0x11d3, \
 DEFINE_GUID(CLSID_NullRenderer,0xc1f400a4,0x3f08,0x11d3,\
                                0x9f,0x0b,0x00,0x60,0x08,0x03,0x9e,0x37);
 #endif // CLSID_NullRenderer
+#endif /// of _MSC_VER
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -336,7 +345,9 @@ class SampleGrabberCallback : public ISampleGrabberCB
                  return S_OK;
             }
 
-            if (riid == __uuidof(ISampleGrabberCB))
+			// M$VC not recognizes this type, sucks !
+			//if (riid == __uuidof(ISampleGrabberCB))
+			if (riid == CLSID_SampleGrabber)
             {
                 *ppvObject = static_cast<ISampleGrabberCB*>(this);
                  return S_OK;
@@ -1496,7 +1507,7 @@ bool DShowCamera::configureDevice()
                     {
                         dxdsprop->\
                         pGrabberFilter->\
-                        QueryInterface( IID_PPV_ARGS(&dxdsprop->pSGrabber) );
+                        QueryInterface( IID_ISampleGrabber, (LPVOID*)&dxdsprop->pSGrabber );
                     }
                 }
 

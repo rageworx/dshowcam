@@ -3,7 +3,6 @@
 
 #define NO_DSHOW_STRSAFE
 #include <dshow.h>
-#include <qedit.h>
 
 namespace dshowcamtk
 {
