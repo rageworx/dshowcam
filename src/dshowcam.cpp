@@ -10,6 +10,8 @@
 #include "dshowcam.h"
 #include "dshowcamtk.h"
 #include "yuvconv.h"
+#include "rgbconv.h"
+#include "mjpgconv.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -399,6 +401,31 @@ class SampleGrabberCallback : public ISampleGrabberCB
                                                               imgWidth,
                                                               imgHeight );
                             break;
+
+						case DShowCamera::RGB555:
+							GrabConvertedBufferSz = rgb555rgb( pBuffer,
+															   BufferLen,
+															   (void**)&GrabConvertedBuffer,
+															   imgWidth,
+															   imgHeight );
+							break;
+
+						case DShowCamera::RGB565:
+							GrabConvertedBufferSz = rgb565rgb( pBuffer,
+															   BufferLen,
+															   (void**)&GrabConvertedBuffer,
+															   imgWidth,
+															   imgHeight );
+							break;
+						#ifndef _MSC_VER
+						case DShowCamera::MJPEG:
+							GrabConvertedBufferSz = mjpeg2rgb( pBuffer,
+															   BufferLen,
+															   (void**)&GrabConvertedBuffer,
+															   imgWidth,
+															   imgHeight );
+							break;
+						#endif /// of _MSC_VER
                     }
                 }
 
@@ -1563,7 +1590,7 @@ bool DShowCamera::configureDevice()
             {
                 if ( pSGCB == NULL )
                 {
-                    pSGCB = new SampleGrabberCallback( DShowCamera::YUYV );
+                    pSGCB = new SampleGrabberCallback( cfgitems[ currentcfgidx ].encodedtype );
                 }
 
                 dxdsprop->pSGrabber->SetOneShot( FALSE );
@@ -1837,7 +1864,17 @@ void DShowCamera::enumerateConfigs()
                                 else
                                 if ( pmtCfg->subtype == MEDIASUBTYPE_YUYV )
                                     newcfgitem.encodedtype = DShowCamera::YUYV;
-
+								else
+								if (pmtCfg->subtype == MEDIASUBTYPE_RGB555)
+									newcfgitem.encodedtype = DShowCamera::RGB555;
+								else
+									if (pmtCfg->subtype == MEDIASUBTYPE_RGB565)
+										newcfgitem.encodedtype = DShowCamera::RGB565;
+							#ifndef _MSC_VER
+								else
+									if (pmtCfg->subtype == MEDIASUBTYPE_MJPG)
+										newcfgitem.encodedtype = DShowCamera::MJPEG;
+							#endif /// of _MSC_VER
                                 newcfgitem.width  = pVih->bmiHeader.biWidth;
                                 newcfgitem.height = pVih->bmiHeader.biHeight;
                                 newcfgitem.bpp    = pVih->bmiHeader.biBitCount;
