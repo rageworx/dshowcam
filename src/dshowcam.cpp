@@ -182,6 +182,7 @@ class DxDShowProperties
            pSGrabber( NULL ),
            pSourceFilter( NULL ),
            pNullFilter( NULL ),
+           pEventTrigger( NULL ),
            bConfigured( false )
         {
             // Initialized.
@@ -193,6 +194,7 @@ class DxDShowProperties
         {
             finalizeControl();
 
+            _SafeRelease(pEventTrigger);
             _SafeRelease(pCameraFilter);
             _SafeRelease(pNullFilter);
             _SafeRelease(pSourceFilter);
@@ -216,6 +218,8 @@ class DxDShowProperties
         ISampleGrabber*         pSGrabber;
         IBaseFilter*            pSourceFilter;
         IBaseFilter*            pNullFilter;
+        IMediaEvent*            pEventTrigger;
+        IAMVideoControl*        pVideoControl;
 
         AM_MEDIA_TYPE           ConfigAMT;
         bool                    bConfigured;
@@ -456,6 +460,7 @@ class SampleGrabberCallback : public ISampleGrabberCB
 DShowCamera::DShowCamera()
  : dxdsprop( NULL ),
    bConfigured( false ),
+   bPolling( false ),
    pSGCB( NULL ),
    currentcfgidx(-1)
 {
@@ -702,6 +707,9 @@ bool DShowCamera::GetSetting( SETTING_TYPE settype, CameraSettingItem &item )
 
 bool DShowCamera::ApplyManualSetting( SETTING_TYPE settype, long newVal )
 {
+    if (settype >= SETTING_TYPE_MAX )
+        return false;
+
     IAMCameraControl* pCamCtrl = NULL;
     IAMVideoProcAmp*  pProcAmp = NULL;
 
@@ -1337,6 +1345,8 @@ bool DShowCamera::StartPoll()
             if ( cstate != State_Running )
             {
                 dxdsprop->pControl->Run();
+
+                bPolling = true;
             }
 
             return true;
@@ -1364,6 +1374,8 @@ bool DShowCamera::StopPoll()
             if ( cstate != State_Stopped )
             {
                 dxdsprop->pControl->Stop();
+
+                bPolling = false;
             }
 
             return true;
@@ -1397,6 +1409,72 @@ bool DShowCamera::GrabAFrame( unsigned char* &buff, unsigned &bufflen )
     return false;
 }
 
+bool DShowCamera::OneShot( unsigned char* &buff, unsigned &bufflen )
+{
+    if ( dxdsprop != NULL )
+    {
+        if ( bPolling == false )
+        {
+            if ( dxdsprop->pSGrabber != NULL )
+            {
+                if ( dxdsprop->pVideoControl == NULL )
+                    return false;
+
+                IPin *pCameraStillPin = NULL;
+
+                dxdsprop->pCGB->FindPin( dxdsprop->pCameraFilter,
+                                         PINDIR_OUTPUT,
+                                         &PIN_CATEGORY_STILL,
+                                         NULL,
+                                         FALSE,
+                                         0,
+                                         &pCameraStillPin );
+
+                if ( pCameraStillPin == NULL )
+                    return false;
+
+                LONG triggermode = VideoControlFlag_ExternalTriggerEnable |
+                                   VideoControlFlag_Trigger;
+
+                dxdsprop->pSGrabber->SetOneShot( TRUE );
+                dxdsprop->pVideoControl->SetMode( pCameraStillPin, triggermode );
+
+                if( StartPoll() == true )
+                {
+                    bool evented = false;
+                    long evcode = 0;
+
+                    // reset bufflen returns.
+                    bufflen = 0;
+
+                    if ( dxdsprop->pEventTrigger != NULL )
+                    {
+                        dxdsprop->pEventTrigger->WaitForCompletion( INFINITE, &evcode );
+                        evented = true;
+                        printf("WaitForCompletion, evcode = %ld\n", evcode);
+                    }
+
+                    if ( evented == true )
+                    {
+                        pSGCB->Grab();
+                        bufflen = pSGCB->GetBuffer( buff );
+                    }
+
+                    StopPoll();
+
+                    _SafeRelease(pCameraStillPin);
+
+                    if ( bufflen > 0 )
+                        return true;
+                }
+
+                _SafeRelease(pCameraStillPin);
+            }
+        }
+    }
+
+    return false;
+}
 
 bool DShowCamera::initDevice( size_t idx )
 {
@@ -1480,6 +1558,16 @@ bool DShowCamera::connectDevice( size_t idx )
                 {
                     retb = true;
                 }
+
+                // Find Video Control.
+                dxdsprop->\
+                pCameraFilter->QueryInterface( IID_IAMVideoControl,
+                                               (LPVOID*)&dxdsprop->pVideoControl );
+
+                if ( dxdsprop->pVideoControl == NULL )
+                {
+                    printf("#WARNING: Failed to get Video control ...\n" );
+                }
             }
         }
 
@@ -1508,6 +1596,10 @@ bool DShowCamera::configureDevice()
 
             if ( dxdsprop->pGraph != NULL )
             {
+                // Find Event Trigger.
+                dxdsprop->pGraph->QueryInterface( IID_IMediaEvent,
+                                                  (LPVOID*)&dxdsprop->pEventTrigger );
+
                 if ( dxdsprop->pControl == NULL )
                 {
                     dxdsprop->\
@@ -1534,7 +1626,7 @@ bool DShowCamera::configureDevice()
                     {
                         dxdsprop->\
                         pGrabberFilter->\
-                        QueryInterface( IID_ISampleGrabber, (LPVOID*)&dxdsprop->pSGrabber );
+                        QueryInterface( IID_PPV_ARGS(&dxdsprop->pSGrabber) );
                     }
                 }
 

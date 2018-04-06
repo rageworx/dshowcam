@@ -110,6 +110,7 @@ class DShowCamera
         bool   StartPoll();
         bool   StopPoll();
         bool   GrabAFrame( unsigned char* &buff, unsigned &bufflen );
+        bool   OneShot( unsigned char* &buff, unsigned &bufflen );
 
     protected:
         bool initDevice( size_t idx );
@@ -125,6 +126,7 @@ class DShowCamera
         ConfigItems         cfgitems;
         CameraSettingItem   settings[SETTING_TYPE_MAX];
         bool                bConfigured;
+        bool                bPolling;
         int                 currentcfgidx;
 
     protected:
