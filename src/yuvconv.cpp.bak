@@ -41,10 +41,7 @@ unsigned yuyv2rgb(void* in, unsigned sz, void** out,unsigned width, unsigned hei
     unsigned char* prgb_end = prgb + ( ( width * height ) * 3 );
 
     if ( prgb == NULL )
-    {
-        *out = NULL;
         return 0;
-    }
 
     while ( ( pyuv < pyuv_end ) || ( prgb_que < prgb_end ) )
     {
@@ -83,10 +80,7 @@ unsigned yuvy2rgb(void* in, unsigned sz, void** out, unsigned width, unsigned he
     unsigned char* prgb_end = prgb + ( ( width * height ) * 3 );
 
     if ( prgb == NULL )
-    {
-        *out = NULL;
         return 0;
-    }
 
     while ( ( pyuv < pyuv_end ) || ( prgb_que < prgb_end ) )
     {

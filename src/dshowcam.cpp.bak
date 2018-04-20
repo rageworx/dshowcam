@@ -1761,18 +1761,13 @@ bool DShowCamera::configureDevice()
                                     dxdsprop->pGrabberFilter,
                                     dxdsprop->pNullFilter );
                 }
-
-                // Find Event Trigger.
-                dxdsprop->pGraph->QueryInterface( IID_IMediaEvent,
-                                                  (LPVOID*)&dxdsprop->pEventTrigger );
-
             }
 
             if ( dxdsprop->pSGrabber != NULL )
             {
                 if ( pSGCB == NULL )
                 {
-                    pSGCB = new SampleGrabberCallback( cfgitems[0].encodedtype );
+                    pSGCB = new SampleGrabberCallback( cfgitems[ currentcfgidx ].encodedtype );
                 }
 
                 dxdsprop->pSGrabber->SetOneShot( FALSE );
