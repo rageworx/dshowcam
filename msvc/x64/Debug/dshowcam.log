@@ -1,0 +1,14 @@
+﻿cl : Command line warning D9025: overriding '/sdl-' with '/GS-'
+  yuvconv.cpp
+  rgbconv.cpp
+  mjpgconv.cpp
+  dshowcamtk.cpp
+  dshowcam.cpp
+d:\projects\dshowcam\src\dshowcam.cpp(89): warning C4996: 'sprintf': This function or variable may be unsafe. Consider using sprintf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+  c:\program files (x86)\windows kits\10\include\10.0.10240.0\ucrt\stdio.h(1769): note: see declaration of 'sprintf'
+d:\projects\dshowcam\src\dshowcam.cpp(161): warning C4477: 'printf' : format string '%d' requires an argument of type 'int', but variadic argument 1 has type 'GUID'
+d:\projects\dshowcam\src\dshowcam.cpp(662): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data
+d:\projects\dshowcam\src\dshowcam.cpp(684): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
+d:\projects\dshowcam\src\dshowcam.cpp(1542): warning C4267: 'initializing': conversion from 'size_t' to 'ULONG', possible loss of data
+  Generating Code...
+  dshowcam.vcxproj -> D:\Projects\dshowcam\msvc\x64\Debug\dshowcam.lib

@@ -399,14 +399,6 @@ class SampleGrabberCallback : public ISampleGrabberCB
 
             if( ( doGrabFrame == true ) && ( buffLock == false ) )
             {
-                buffLock = false;
-                doGrabFrame = false;
-
-                SetEvent( hEventGrab );
-            }
-#else
-            if( ( doGrabFrame == true ) && ( buffLock == false ) )
-            {
                 if ( GrabConvertedBuffer != NULL )
                 {
                     delete[] GrabConvertedBuffer;

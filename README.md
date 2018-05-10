@@ -3,7 +3,7 @@
 
 ## Requires 
  * Microsoft Windows 32 or 64bit, supporting DirectShow.
- * MinGW-W64 and M-SYS
+ * MSYS2 or MinGW-W64 and M-SYS
  * libraries : kernel32, ole32, strmiids, dxguid, d2d1
 
 ## Recommends why MinGW-W64
