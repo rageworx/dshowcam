@@ -33,3 +33,10 @@
 
 # Backup or Useless
 *.bak
+
+# Some directories
+bin
+obj
+
+# M$VC wastes
+x64
