@@ -323,12 +323,12 @@ class SampleGrabberCallback : public ISampleGrabberCB
 
                 // Now wait for event for a second.
                 if ( WaitForSingleObject( hEventGrab, 1000 ) != WAIT_OBJECT_0 )
-				{
+                {
 #ifdef DEBUG
-				    printf( "WaitForSingleObject() failure.\n" );
+                    printf( "WaitForSingleObject() failure.\n" );
 #endif
-					doGrabFrame = false;
-				}
+                    doGrabFrame = false;
+                }
             }
         }
 
@@ -375,7 +375,7 @@ class SampleGrabberCallback : public ISampleGrabberCB
                  return S_OK;
             }
 
-			if (riid == CLSID_SampleGrabber)
+            if (riid == CLSID_SampleGrabber)
             {
                 *ppvObject = static_cast<ISampleGrabberCB*>(this);
                  return S_OK;
@@ -428,33 +428,33 @@ class SampleGrabberCallback : public ISampleGrabberCB
                                                               imgHeight );
                             break;
 
-						case DShowCamera::RGB555:
+                        case DShowCamera::RGB555:
                             GrabConvertedBufferSz = \
                             rgb555rgb( pBuffer,
-															   BufferLen,
-															   (void**)&GrabConvertedBuffer,
-															   imgWidth,
-															   imgHeight );
-							break;
+                                                               BufferLen,
+                                                               (void**)&GrabConvertedBuffer,
+                                                               imgWidth,
+                                                               imgHeight );
+                            break;
 
-						case DShowCamera::RGB565:
+                        case DShowCamera::RGB565:
                             GrabConvertedBufferSz = \
                             rgb565rgb( pBuffer,
-															   BufferLen,
-															   (void**)&GrabConvertedBuffer,
-															   imgWidth,
-															   imgHeight );
-							break;
-						#ifndef _MSC_VER
-						case DShowCamera::MJPEG:
+                                                               BufferLen,
+                                                               (void**)&GrabConvertedBuffer,
+                                                               imgWidth,
+                                                               imgHeight );
+                            break;
+                        #ifndef _MSC_VER
+                        case DShowCamera::MJPEG:
                             GrabConvertedBufferSz = \
                             mjpeg2rgb( pBuffer,
-															   BufferLen,
-															   (void**)&GrabConvertedBuffer,
-															   imgWidth,
-															   imgHeight );
-							break;
-						#endif /// of _MSC_VER
+                                                               BufferLen,
+                                                               (void**)&GrabConvertedBuffer,
+                                                               imgWidth,
+                                                               imgHeight );
+                            break;
+                        #endif /// of _MSC_VER
                     }
                 }
 
@@ -727,11 +727,11 @@ bool DShowCamera::SelectConfig( size_t idx )
 
                         if ( pSGCB != NULL )
                         {
-	                        VIDEOINFOHEADER *pVih = \
-	                        (VIDEOINFOHEADER*)dxdsprop->ConfigAMT.pbFormat;
-	
-	                        pSGCB->Size( pVih->bmiHeader.biWidth,
-	                                     pVih->bmiHeader.biHeight );
+                            VIDEOINFOHEADER *pVih = \
+                            (VIDEOINFOHEADER*)dxdsprop->ConfigAMT.pbFormat;
+    
+                            pSGCB->Size( pVih->bmiHeader.biWidth,
+                                         pVih->bmiHeader.biHeight );
 
                             dxdsprop->pSGrabber->SetCallback( pSGCB, 1 );
                             dxdsprop->pSGrabber->SetBufferSamples( TRUE );
@@ -1702,8 +1702,8 @@ bool DShowCamera::configureDevice()
                     {
                         dxdsprop->\
                         pGrabberFilter->\
-						QueryInterface( IID_ISampleGrabber, (LPVOID*)&dxdsprop->pSGrabber );
-						//QueryInterface( IID_PPV_ARGS(&dxdsprop->pSGrabber) );
+                        QueryInterface( IID_ISampleGrabber, (LPVOID*)&dxdsprop->pSGrabber );
+                        //QueryInterface( IID_PPV_ARGS(&dxdsprop->pSGrabber) );
                     }
                 }
 
@@ -2038,17 +2038,17 @@ void DShowCamera::enumerateConfigs()
                                 else
                                 if ( pmtCfg->subtype == MEDIASUBTYPE_YUYV )
                                     newcfgitem.encodedtype = DShowCamera::YUYV;
-								else
-								if (pmtCfg->subtype == MEDIASUBTYPE_RGB555)
-									newcfgitem.encodedtype = DShowCamera::RGB555;
-								else
-									if (pmtCfg->subtype == MEDIASUBTYPE_RGB565)
-										newcfgitem.encodedtype = DShowCamera::RGB565;
-							#ifndef _MSC_VER
-								else
-									if (pmtCfg->subtype == MEDIASUBTYPE_MJPG)
-										newcfgitem.encodedtype = DShowCamera::MJPEG;
-							#endif /// of _MSC_VER
+                                else
+                                if (pmtCfg->subtype == MEDIASUBTYPE_RGB555)
+                                    newcfgitem.encodedtype = DShowCamera::RGB555;
+                                else
+                                    if (pmtCfg->subtype == MEDIASUBTYPE_RGB565)
+                                        newcfgitem.encodedtype = DShowCamera::RGB565;
+                            #ifndef _MSC_VER
+                                else
+                                    if (pmtCfg->subtype == MEDIASUBTYPE_MJPG)
+                                        newcfgitem.encodedtype = DShowCamera::MJPEG;
+                            #endif /// of _MSC_VER
                                 newcfgitem.width  = pVih->bmiHeader.biWidth;
                                 newcfgitem.height = pVih->bmiHeader.biHeight;
                                 newcfgitem.bpp    = pVih->bmiHeader.biBitCount;

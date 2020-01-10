@@ -28,12 +28,12 @@ class DShowCamera
             UNSUPPORTED = -1,
             YUYV = 0,
             YUVY,
-			RGB555,
-			RGB565,
-		#ifndef _MSC_VER
-			MJPEG,
-		#endif
-			ENCODE_TYPE_MAX
+            RGB555,
+            RGB565,
+        #ifndef _MSC_VER
+            MJPEG,
+        #endif
+            ENCODE_TYPE_MAX
         }ENCODE_TYPE;
 
         typedef enum

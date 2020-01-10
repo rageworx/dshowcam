@@ -199,7 +199,7 @@ unsigned mjpeg2rgb(void* in, unsigned sz, void** out,unsigned width, unsigned he
 
     jpeg_finish_decompress(&dinfo);
     jpeg_destroy_decompress(&dinfo);
-	
+    
     return true;
 }
 #endif /// of _MSC_VER
