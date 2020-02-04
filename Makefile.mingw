@@ -11,30 +11,30 @@ AR  = ar
 BASE_PATH = .
 LIB_PATH  = $(BASE_PATH)/lib
 SRC_PATH  = $(BASE_PATH)/src
-FSRC_PATH = $(SRC_PATH)/fl
 LOCI_PATH = /usr/local/include
 LOCL_PATH = /usr/local/lib
 
 # TARGET settings
-TARGET_PKG = dshowcam.a
+TARGET_PKG = libdshowcam.a
 TARGET_DIR = ./lib/Release
 TARGET_OBJ = ./obj/Release
-LIBWIN32S  = -lkernel32 -lole32 -lstrmiids -ldxguid -ld2d1
+LIBWIN32S  = -lkernel32 -lole32 -loleaut32 -lstrmiids -ldxguid -ld2d1
 
 # DEFINITIONS
 DEFS  = -DUNICODE
+DEFS += -DDEBUG
 
 # Compiler optiops 
-COPTS  = -mms-bitfields -mwindows 
+COPTS  = -mms-bitfields -mwindows -g
 
 # CC FLAG
-CFLAGS  = -I$(SRC_PATH) -I$(FSRC_PATH) 
-CFLAGS += -I$(LIB_PATH) -I$(LOCI_PATH) -Ires
+CFLAGS  = -I$(SRC_PATH)
+CFLAGS += -I$(LIB_PATH) -I$(LOCI_PATH)
 CFLAGS += $(DEFS)
 CFLAGS += $(COPTS)
 
 # LINK FLAG
-LFLAGS  =
+LFLAGS  = -g
 LFLAGS += -L$(LOCL_PATH)
 LFLAGS += -ljpeg
 LFLAGS += $(LIBWIN32S)
