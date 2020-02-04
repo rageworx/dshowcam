@@ -33,6 +33,7 @@ class DShowCamera
         #ifndef _MSC_VER
             MJPEG,
         #endif
+            BYPASS,
             ENCODE_TYPE_MAX
         }ENCODE_TYPE;
 
@@ -109,8 +110,9 @@ class DShowCamera
         bool   ApplyAutoSetting( SETTING_TYPE settype );
         bool   StartPoll();
         bool   StopPoll();
+        bool   SetGrabRaw( bool onoff );
         bool   GrabAFrame( unsigned char* &buff, unsigned &bufflen );
-        bool   OneShot( unsigned char* &buff, unsigned &bufflen );
+        bool   GrabTriggered( unsigned char* &buff, unsigned &bufflen );
 
     protected:
         bool initDevice( size_t idx );

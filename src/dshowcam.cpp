@@ -268,6 +268,7 @@ class SampleGrabberCallback : public ISampleGrabberCB
         SampleGrabberCallback(DShowCamera::ENCODE_TYPE encode_type)
          : doGrabFrame( false ),
            buffLock( false ),
+           prev_enc_type( DShowCamera::UNSUPPORTED ),
            enc_type( encode_type ),
            GrabConvertedBuffer( NULL ),
            GrabConvertedBufferSz( 0 ),
@@ -313,6 +314,24 @@ class SampleGrabberCallback : public ISampleGrabberCB
         {
             imgWidth = w;
             imgHeight = h;
+        }
+        
+        void SetBypass()
+        {
+            if ( enc_type != DShowCamera::BYPASS )
+            {
+                prev_enc_type = enc_type;
+                enc_type = DShowCamera::BYPASS;
+            }
+        }
+        
+        void UnsetBypass()
+        {
+            if ( enc_type == DShowCamera::BYPASS )
+            {
+                enc_type = prev_enc_type;
+                prev_enc_type = DShowCamera::UNSUPPORTED;
+            }
         }
 
         void Grab()
@@ -412,49 +431,59 @@ class SampleGrabberCallback : public ISampleGrabberCB
                     {
                         case DShowCamera::YUYV:
                             GrabConvertedBufferSz = \
-                            yuyv2rgb( pBuffer,
-                                                              BufferLen,
-                                                              (void**)&GrabConvertedBuffer,
-                                                              imgWidth,
-                                                              imgHeight );
+                                        yuyv2rgb( pBuffer,
+                                                  BufferLen,
+                                                  (void**)&GrabConvertedBuffer,
+                                                  imgWidth,
+                                                  imgHeight );
                             break;
 
                         case DShowCamera::YUVY:
                             GrabConvertedBufferSz = \
-                            yuyv2rgb( pBuffer,
-                                                              BufferLen,
-                                                              (void**)&GrabConvertedBuffer,
-                                                              imgWidth,
-                                                              imgHeight );
+                                        yuyv2rgb( pBuffer,
+                                                  BufferLen,
+                                                  (void**)&GrabConvertedBuffer,
+                                                  imgWidth,
+                                                  imgHeight );
                             break;
 
                         case DShowCamera::RGB555:
                             GrabConvertedBufferSz = \
-                            rgb555rgb( pBuffer,
-                                                               BufferLen,
-                                                               (void**)&GrabConvertedBuffer,
-                                                               imgWidth,
-                                                               imgHeight );
+                                        rgb555rgb( pBuffer,
+                                                   BufferLen,
+                                                   (void**)&GrabConvertedBuffer,
+                                                   imgWidth,
+                                                   imgHeight );
                             break;
 
                         case DShowCamera::RGB565:
                             GrabConvertedBufferSz = \
-                            rgb565rgb( pBuffer,
-                                                               BufferLen,
-                                                               (void**)&GrabConvertedBuffer,
-                                                               imgWidth,
-                                                               imgHeight );
+                                        rgb565rgb( pBuffer,
+                                                   BufferLen,
+                                                   (void**)&GrabConvertedBuffer,
+                                                   imgWidth,
+                                                   imgHeight );
                             break;
                         #ifndef _MSC_VER
                         case DShowCamera::MJPEG:
                             GrabConvertedBufferSz = \
-                            mjpeg2rgb( pBuffer,
-                                                               BufferLen,
-                                                               (void**)&GrabConvertedBuffer,
-                                                               imgWidth,
-                                                               imgHeight );
+                                mjpeg2rgb( pBuffer,
+                                                   BufferLen,
+                                                   (void**)&GrabConvertedBuffer,
+                                                   imgWidth,
+                                                   imgHeight );
                             break;
                         #endif /// of _MSC_VER
+                        case DShowCamera::BYPASS:
+                            {
+                                GrabConvertedBuffer = new unsigned char[ BufferLen ];
+                                if ( GrabConvertedBuffer != NULL )
+                                {
+                                    memcpy( GrabConvertedBuffer, pBuffer, BufferLen );
+                                    GrabConvertedBufferSz = BufferLen;
+                                }
+                            }
+                            break;
                     }
                 }
 
@@ -496,6 +525,7 @@ class SampleGrabberCallback : public ISampleGrabberCB
 
     private:
         DShowCamera::ENCODE_TYPE enc_type;
+        DShowCamera::ENCODE_TYPE prev_enc_type;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1443,6 +1473,27 @@ bool DShowCamera::StopPoll()
     return false;
 }
 
+bool DShowCamera::SetGrabRaw( bool onoff )
+{
+    if ( dxdsprop != NULL )
+    {
+        if ( pSGCB != NULL )
+        {
+            if ( onoff == true )
+            {
+                pSGCB->SetBypass();
+            }
+            else
+            {
+                pSGCB->UnsetBypass();
+            }
+            
+            return true;
+        }
+    }
+    return false;
+}
+
 bool DShowCamera::GrabAFrame( unsigned char* &buff, unsigned &bufflen )
 {
     if ( dxdsprop != NULL )
@@ -1470,7 +1521,7 @@ bool DShowCamera::GrabAFrame( unsigned char* &buff, unsigned &bufflen )
     return false;
 }
 
-bool DShowCamera::OneShot( unsigned char* &buff, unsigned &bufflen )
+bool DShowCamera::GrabTriggered( unsigned char* &buff, unsigned &bufflen )
 {
     if ( dxdsprop != NULL )
     {
@@ -2049,6 +2100,7 @@ void DShowCamera::enumerateConfigs()
                                     if (pmtCfg->subtype == MEDIASUBTYPE_MJPG)
                                         newcfgitem.encodedtype = DShowCamera::MJPEG;
                             #endif /// of _MSC_VER
+                                
                                 newcfgitem.width  = pVih->bmiHeader.biWidth;
                                 newcfgitem.height = pVih->bmiHeader.biHeight;
                                 newcfgitem.bpp    = pVih->bmiHeader.biBitCount;

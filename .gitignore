@@ -40,3 +40,8 @@ obj
 
 # M$VC wastes
 x64
+.vs/
+*.VC.db
+
+# Out
+lib/
