@@ -47,7 +47,7 @@ OBJS = $(SRCS:$(SRC_PATH)/%.cpp=$(TARGET_OBJ)/%.o)
 
 .PHONY: prepare clean
 
-all: prepare clean continue packaging
+all: prepare continue packaging
 continue: $(TARGET_DIR)/$(TARGET_PKG)
 
 prepare:

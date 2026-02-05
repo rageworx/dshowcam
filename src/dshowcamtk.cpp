@@ -12,7 +12,8 @@ namespace dshowcamtk
         }
         else if (hr == VFW_E_NOT_CONNECTED)
         {
-            // The pin is not connected. This is not an error for our purposes.
+            // The pin is not connected. 
+            // This is not an error for our purposes.
             *pResult = FALSE;
             hr = S_OK;
         }

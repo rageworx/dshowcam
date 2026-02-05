@@ -1,7 +1,10 @@
 #include <windows.h>
 #include <initguid.h>
+#include <cstdio>
+#include <cstdlib>
+
 #ifdef _MSC_VER 
-// Why latest M$VC not supports qedit ? why ???
+// It seems to most of M$VC not supports qedit
 #include "qeditimp.h"
 #else
 #include <qedit.h>
@@ -22,21 +25,24 @@ using namespace dshowcamtk;
 // Y8 GUID : 20203859-0000-0010-8000-00AA00389B71
 #ifndef MEDIASUBTYPE_Y8
 DEFINE_GUID(MEDIASUBTYPE_Y8,0x20203859,0x0000,0x0010,\
-                            0x80,0x00,0x000,0xAA,0x00,0x38,0x9B,0x71);
+            0x80,0x00,0x000,0xAA,0x00,0x38,0x9B,0x71);
 #endif // MEDIASUBTYPE_Y8
 
 #ifndef _MSC_VER
-// M$VC may not allow to define these, ha !
-#ifndef CLSID_SampleGrabber
-DEFINE_GUID(CLSID_SampleGrabber,0xc1f400a0,0x3f08,0x11d3, \
-                                0x9f,0x0b,0x00,0x60,0x08,0x03,0x9e,0x37);
+// CLSID_SampleGrabber GUID defines in variable env, 
+// So I decide as new one.
+#ifndef CLSID_SampleGrabberEx
+DEFINE_GUID(CLSID_SampleGrabberEx,0xc1f400a0,0x3f08,0x11d3,\
+            0x9f,0x0b,0x00,0x60,0x08,0x03,0x9e,0x37);
 #endif // CLSID_SampleGrabber
 
 #ifndef CLSID_NullRenderer
 DEFINE_GUID(CLSID_NullRenderer,0xc1f400a4,0x3f08,0x11d3,\
-                               0x9f,0x0b,0x00,0x60,0x08,0x03,0x9e,0x37);
+            0x9f,0x0b,0x00,0x60,0x08,0x03,0x9e,0x37);
 #endif // CLSID_NullRenderer
 #endif /// of _MSC_VER
+
+#define DSHOWCAMTK_DEFAULT_TIMEOUT      ( 1000 )
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,6 +58,7 @@ static void _Finalize_DSHOWCOMOBJ();
 
 static void _Initialize_DSHOWCOMOBJ()
 {
+#ifndef NO_AUTO_COMOBJ_INIT
     if ( _COMOBJ_INIT == false )
     {
         if ( CoInitialize(NULL) == S_OK )
@@ -64,10 +71,12 @@ static void _Initialize_DSHOWCOMOBJ()
     {
         _COMOBJ_REFCOUNT++;
     }
+#endif /// of NO_AUTO_COMOBJ_INIT
 }
 
 static void _Finalize_DSHOWCOMOBJ()
 {
+#ifndef NO_AUTO_COMOBJ_INIT
     if ( ( _COMOBJ_REFCOUNT > 0 ) && ( _COMOBJ_INIT == true ) )
     {
         if ( _COMOBJ_REFCOUNT == 1 )
@@ -78,6 +87,7 @@ static void _Finalize_DSHOWCOMOBJ()
 
         _COMOBJ_REFCOUNT--;
     }
+#endif /// of NO_AUTO_COMOBJ_INIT
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,19 +96,20 @@ const char* GUID2str(GUID guid)
 {
     static char retstr[128] = {0};
 
-    sprintf( retstr,
-             "{%08lX-%04hX-%04hX-%02hhX%02hhX-%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX}",
-             guid.Data1,
-             guid.Data2,
-             guid.Data3,
-             guid.Data4[0],
-             guid.Data4[1],
-             guid.Data4[2],
-             guid.Data4[3],
-             guid.Data4[4],
-             guid.Data4[5],
-             guid.Data4[6],
-             guid.Data4[7] );
+    snprintf( retstr, 128,
+              "{%08lX-%04hX-%04hX-%02hhX%02hhX-"
+              "%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX}",
+              guid.Data1,
+              guid.Data2,
+              guid.Data3,
+              guid.Data4[0],
+              guid.Data4[1],
+              guid.Data4[2],
+              guid.Data4[3],
+              guid.Data4[4],
+              guid.Data4[5],
+              guid.Data4[6],
+              guid.Data4[7] );
 
     return retstr;
 }
@@ -158,7 +169,8 @@ void PrintMediaType( int idx, AM_MEDIA_TYPE *pmt)
         }
         else
         {
-            printf( "Error: media major type is not video ! (%d)\n",
+            fprintf( stderr,
+                     "Error: media major type is not video ! (%d)\n",
                      pmt->majortype );
         }
     }
@@ -231,7 +243,7 @@ class DxDShowProperties
             {
                 OAFilterState cstate = 0;
 
-                pControl->GetState( 100, &cstate );
+                pControl->GetState( 1000, &cstate );
 
                 if ( cstate != State_Stopped )
                 {
@@ -246,7 +258,6 @@ class DxDShowProperties
             {
                 pSourceFilter->Stop();
             }
-
 
             if ( pSGrabber != NULL )
             {
@@ -275,7 +286,10 @@ class SampleGrabberCallback : public ISampleGrabberCB
            UserBuffer( NULL ),
            UserBufferSz( 0 )
         {
-            hEventGrab = CreateEvent( NULL, FALSE, FALSE, L"FrameGrabEvent" );
+            wchar_t tmpEventNm[64] = {0};
+            snwprintf( tmpEventNm, 64, L"FrameGrabEvent%u", \
+                       rand()%0xFFFF );
+            hEventGrab = CreateEvent( NULL, FALSE, FALSE, tmpEventNm );
 
 #ifdef DEBUG
             if ( enc_type >= DShowCamera::ENCODE_TYPE_MAX )
@@ -394,7 +408,7 @@ class SampleGrabberCallback : public ISampleGrabberCB
                  return S_OK;
             }
 
-            if (riid == CLSID_SampleGrabber)
+            if (riid == CLSID_SampleGrabberEx)
             {
                 *ppvObject = static_cast<ISampleGrabberCB*>(this);
                  return S_OK;
@@ -1427,17 +1441,42 @@ bool DShowCamera::StartPoll()
         if ( dxdsprop->pControl != NULL )
         {
             OAFilterState cstate = 0;
+            unsigned retrying = 0;
 
-            dxdsprop->pControl->GetState( 100, &cstate );
+            // test for running state ..
+            dxdsprop->pControl->GetState( 1000, &cstate );
+            if ( cstate == State_Running )
+                return true;
 
-            if ( cstate != State_Running )
+            if ( dxdsprop->pSourceFilter != NULL )
             {
-                dxdsprop->pControl->Run();
-
-                bPolling = true;
+                dxdsprop->pSourceFilter->Run( 0 );
             }
 
-            return true;
+            while( retrying < 100 )
+            {
+                if ( dxdsprop->pControl->Run() == S_OK )
+                    break;
+
+                retrying++;
+            }
+
+            retrying = 0;
+
+            while( retrying < 100 )
+            {
+                dxdsprop->pControl->GetState( 1000, &cstate );
+
+                if ( cstate == State_Running )
+                {
+                    bPolling = true;
+                    break;
+                }
+
+                retrying ++;
+            }
+
+            return bPolling;
         }
     }
 
@@ -1457,7 +1496,7 @@ bool DShowCamera::StopPoll()
         {
             OAFilterState cstate = 0;
 
-            dxdsprop->pControl->GetState( 100, &cstate );
+            dxdsprop->pControl->GetState( 1000, &cstate );
 
             if ( cstate != State_Stopped )
             {
@@ -1512,6 +1551,14 @@ bool DShowCamera::GrabAFrame( unsigned char* &buff, unsigned &bufflen )
 
                 return true;
             }
+#ifdef DEBUG
+            else
+            {
+                printf( "cstate is not State_Running ? (%u:%u)\n",
+                        (unsigned)cstate,
+                        (unsigned)State_Running );
+            }
+#endif /// of DEBUG
         }
     }
 
@@ -1616,6 +1663,11 @@ bool DShowCamera::initDevice( size_t idx )
     {
         bool retb = false;
 
+        if ( camDevInfo.size() == 0 )
+        {
+            EnermateDevice( NULL );
+        }
+
         if ( camDevInfo.size() > 0 )
         {
             retb = connectDevice( idx );
@@ -1693,7 +1745,8 @@ bool DShowCamera::connectDevice( size_t idx )
 
                 if ( dxdsprop->pVideoControl == NULL )
                 {
-                    printf("#WARNING: Failed to get Video control ...\n" );
+                    fprintf( stderr, 
+                             "#WARNING: Failed to get Video control ...\n" );
                 }
             }
         }
@@ -1799,7 +1852,7 @@ bool DShowCamera::configureDevice()
                 if ( dxdsprop->pNullFilter != NULL )
                 {
                     dxdsprop->pGraph->AddFilter( dxdsprop->pNullFilter,
-                                                    L"NULL Renderer Filter" );
+                                                 L"NULL Renderer Filter" );
                     ConnectFilters( dxdsprop->pGraph,
                                     dxdsprop->pGrabberFilter,
                                     dxdsprop->pNullFilter );
