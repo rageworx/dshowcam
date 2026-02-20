@@ -1,8 +1,10 @@
 #include <cstdio>
+#include <cstdint>
 
 #include "yuvconv.h"
 
-#define sat( _x_ )  (unsigned char)( (int)_x_ >= 255 ? 255 : ( (int)_x_ < 0 ? 0 : (int)_x_ ))
+#define sat( _x_ )  \
+        (uint8_t)( (int)_x_ >= 255 ? 255 : ( (int)_x_ < 0 ? 0 : (int)_x_ ))
 
 #define YUYV2RGB_2(pyuv, prgb) { \
     float r = 1.402f * ((pyuv)[3]-128); \
@@ -28,17 +30,20 @@
     (prgb)[5] = sat(((pyuv)[2] + b)); \
     }
 
-#define IYUYV2RGB_4(pyuv, prgb) IYUYV2RGB_2(pyuv, prgb); IYUYV2RGB_2(pyuv + 4, prgb + 6);
-#define IYUYV2RGB_8(pyuv, prgb) IYUYV2RGB_4(pyuv, prgb); IYUYV2RGB_4(pyuv + 8, prgb + 12);
-#define IYUYV2RGB_16(pyuv, prgb) IYUYV2RGB_8(pyuv, prgb); IYUYV2RGB_8(pyuv + 16, prgb + 24);
+#define IYUYV2RGB_4(pyuv, prgb) \
+        IYUYV2RGB_2(pyuv, prgb); IYUYV2RGB_2(pyuv + 4, prgb + 6);
+#define IYUYV2RGB_8(pyuv, prgb) \
+        IYUYV2RGB_4(pyuv, prgb); IYUYV2RGB_4(pyuv + 8, prgb + 12);
+#define IYUYV2RGB_16(pyuv, prgb) \
+        IYUYV2RGB_8(pyuv, prgb); IYUYV2RGB_8(pyuv + 16, prgb + 24);
 
-unsigned yuyv2rgb(void* in, unsigned sz, void** out,unsigned width, unsigned height )
+size_t yuyv2rgb( void* in, size_t sz, void** out, uint32_t width, uint32_t height )
 {
-    unsigned char* pyuv = (unsigned char*)in;
-    unsigned char* pyuv_end = pyuv + ( sz );
-    unsigned char* prgb = new unsigned char[ ( width * height ) * 3 ];
-    unsigned char* prgb_que = prgb;
-    unsigned char* prgb_end = prgb + ( ( width * height ) * 3 );
+    uint8_t* pyuv = (uint8_t*)in;
+    uint8_t* pyuv_end = pyuv + ( sz );
+    uint8_t* prgb = new uint8_t[ ( width * height ) * 3 ];
+    uint8_t* prgb_que = prgb;
+    uint8_t* prgb_end = prgb + ( ( width * height ) * 3 );
 
     if ( prgb == NULL )
     {
@@ -70,17 +75,20 @@ unsigned yuyv2rgb(void* in, unsigned sz, void** out,unsigned width, unsigned hei
     (prgb)[4] = sat((pyuv)[3] + g); \
     (prgb)[5] = sat((pyuv)[3] + b); \
     }
-#define IUYVY2RGB_16(pyuv, prgb) IUYVY2RGB_8(pyuv, prgb); IUYVY2RGB_8(pyuv + 16, prgb + 24);
-#define IUYVY2RGB_8(pyuv, prgb) IUYVY2RGB_4(pyuv, prgb); IUYVY2RGB_4(pyuv + 8, prgb + 12);
-#define IUYVY2RGB_4(pyuv, prgb) IUYVY2RGB_2(pyuv, prgb); IUYVY2RGB_2(pyuv + 4, prgb + 6);
+#define IUYVY2RGB_16(pyuv, prgb) \
+        IUYVY2RGB_8(pyuv, prgb); IUYVY2RGB_8(pyuv + 16, prgb + 24);
+#define IUYVY2RGB_8(pyuv, prgb) \
+        IUYVY2RGB_4(pyuv, prgb); IUYVY2RGB_4(pyuv + 8, prgb + 12);
+#define IUYVY2RGB_4(pyuv, prgb) \
+        IUYVY2RGB_2(pyuv, prgb); IUYVY2RGB_2(pyuv + 4, prgb + 6);
 
-unsigned yuvy2rgb(void* in, unsigned sz, void** out, unsigned width, unsigned height )
+size_t yuvy2rgb( void* in, size_t sz, void** out, uint32_t width, uint32_t height )
 {
-    unsigned char* pyuv = (unsigned char*)in;
-    unsigned char* pyuv_end = pyuv + ( sz );
-    unsigned char* prgb = new unsigned char[ ( width * height ) * 3 ];
-    unsigned char* prgb_que = prgb;
-    unsigned char* prgb_end = prgb + ( ( width * height ) * 3 );
+    uint8_t* pyuv = (uint8_t*)in;
+    uint8_t* pyuv_end = pyuv + ( sz );
+    uint8_t* prgb = new uint8_t[ ( width * height ) * 3 ];
+    uint8_t* prgb_que = prgb;
+    uint8_t* prgb_end = prgb + ( ( width * height ) * 3 );
 
     if ( prgb == NULL )
     {

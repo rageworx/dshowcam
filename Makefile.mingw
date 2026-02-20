@@ -6,6 +6,7 @@
 GCC = gcc
 GPP = g++
 AR  = ar
+RL  = ranlib
 
 # Base PATH
 BASE_PATH = .
@@ -22,10 +23,11 @@ LIBWIN32S  = -lkernel32 -lole32 -loleaut32 -lstrmiids -ldxguid -ld2d1
 
 # DEFINITIONS
 DEFS  = -DUNICODE
-DEFS += -DDEBUG
+# -- for debug -- DEFS += -DDEBUG
 
 # Compiler optiops 
-COPTS  = -mms-bitfields -mwindows -g
+COPTS += -mms-bitfields -mwindows
+# -- for debug -- COPTS += -g3
 
 # CC FLAG
 CFLAGS  = -I$(SRC_PATH)
@@ -70,5 +72,7 @@ $(OBJS): $(TARGET_OBJ)/%.o: $(SRC_PATH)/%.cpp
 
 $(TARGET_DIR)/$(TARGET_PKG): $(OBJS)
 	@echo "Generating $@ ..."
-	@$(AR) -q $@ $(TARGET_OBJ)/*.o
+	@if [ -e $@ ]; then rm -rf $@; fi
+	@$(AR) -cr $@ $(TARGET_OBJ)/*.o
+	@$(RL) $@
 	@echo "done."

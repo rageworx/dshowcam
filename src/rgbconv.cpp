@@ -1,14 +1,15 @@
 #include <cstdio>
+#include <cstdint>
 
 #include "rgbconv.h"
 
-unsigned rgb555rgb(void* in, unsigned sz, void** out,unsigned width, unsigned height )
+size_t rgb555rgb( void* in, size_t sz, void** out, uint32_t width, uint32_t height )
 {
-    unsigned char* prgb555 = (unsigned char*)in;
-    unsigned char* prgb555_end = prgb555 + ( sz );
-    unsigned char* prgb = new unsigned char[ ( width * height ) * 3 ];
-    unsigned char* prgb_que = prgb;
-    unsigned char* prgb_end = prgb + ( ( width * height ) * 3 );
+    uint8_t* prgb555 = (uint8_t*)in;
+    uint8_t* prgb555_end = prgb555 + ( sz );
+    uint8_t* prgb = new uint8_t[ ( width * height ) * 3 ];
+    uint8_t* prgb_que = prgb;
+    uint8_t* prgb_end = prgb + ( ( width * height ) * 3 );
 
     if ( prgb == NULL )
         return 0;
@@ -28,13 +29,13 @@ unsigned rgb555rgb(void* in, unsigned sz, void** out,unsigned width, unsigned he
     return width * height * 3;
 }
 
-unsigned rgb565rgb(void* in, unsigned sz, void** out,unsigned width, unsigned height )
+size_t rgb565rgb( void* in, size_t sz, void** out, uint32_t width, uint32_t height )
 {
-    unsigned char* prgb565 = (unsigned char*)in;
-    unsigned char* prgb565_end = prgb565 + ( sz );
-    unsigned char* prgb = new unsigned char[ ( width * height ) * 3 ];
-    unsigned char* prgb_que = prgb;
-    unsigned char* prgb_end = prgb + ( ( width * height ) * 3 );
+    uint8_t* prgb565 = (uint8_t*)in;
+    uint8_t* prgb565_end = prgb565 + ( sz );
+    uint8_t* prgb = new uint8_t[ ( width * height ) * 3 ];
+    uint8_t* prgb_que = prgb;
+    uint8_t* prgb_end = prgb + ( ( width * height ) * 3 );
 
     if ( prgb == NULL )
         return 0;

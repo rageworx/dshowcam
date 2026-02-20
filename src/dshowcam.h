@@ -8,7 +8,8 @@
 **                                                       for MinGW-W64 and M$VC
 **
 ** -----------------------------------------------------------------------------
-** (C)Copyright 2017, 2018 Raphael Kim (rageworx@gmail.com, rage.kim@gmail.com)
+** (C)Copyright 2017 .. 2026 Raphael Kim 
+**                                      (rageworx@gmail.com, rage.kim@gmail.com)
 **
 ** Made for : Continuous grabbing frame target ( Movie, or still )
 **
@@ -16,6 +17,7 @@
 
 #include <string>
 #include <vector>
+#include <cstdint>
 
 class DxDShowProperties;
 class SampleGrabberCallback;
@@ -71,25 +73,25 @@ class DShowCamera
         typedef struct
         {
             ENCODE_TYPE encodedtype;
-            unsigned bpp;
-            unsigned width;
-            unsigned height;
+            uint8_t  bpp;
+            uint32_t width;
+            uint32_t height;
             size_t   realindex;
         }CameraConfigItem;
 
         typedef struct
         {
-            bool enabled;
-            long minimum_val;
-            long maximum_val;
-            long default_val;
-            long val_step;
-            long flag;
+            bool     enabled;
+            uint32_t minimum_val;
+            uint32_t maximum_val;
+            uint32_t default_val;
+            uint32_t val_step;
+            uint32_t flag;
         }CameraSettingItem;
 
         typedef std::vector< CameraDeviceInfo > DeviceInfos;
         typedef std::vector< CameraConfigItem > ConfigItems;
-        typedef std::vector< unsigned long >    DeviceFreqs;
+        typedef std::vector< uint32_t >         DeviceFreqs;
 
     public:
         DShowCamera();
@@ -106,13 +108,13 @@ class DShowCamera
         bool   SelectDevice( size_t idx );
         bool   SelectConfig( size_t idx );
         bool   GetSetting( SETTING_TYPE settype, CameraSettingItem &item );
-        bool   ApplyManualSetting( SETTING_TYPE settype, long newVal );
+        bool   ApplyManualSetting( SETTING_TYPE settype, uint32_t newVal );
         bool   ApplyAutoSetting( SETTING_TYPE settype );
         bool   StartPoll();
         bool   StopPoll();
         bool   SetGrabRaw( bool onoff );
-        bool   GrabAFrame( unsigned char* &buff, unsigned &bufflen );
-        bool   GrabTriggered( unsigned char* &buff, unsigned &bufflen );
+        bool   GrabAFrame( uint8_t* &buff, size_t &bufflen );
+        bool   GrabTriggered( uint8_t* &buff, size_t &bufflen );
 
     protected:
         bool initDevice( size_t idx );
@@ -129,7 +131,8 @@ class DShowCamera
         CameraSettingItem   settings[SETTING_TYPE_MAX];
         bool                bConfigured;
         bool                bPolling;
-        int                 currentcfgidx;
+        int32_t             currentcfgidx;
+        int32_t             currentcamidx;
 
     protected:
         SampleGrabberCallback*  pSGCB;

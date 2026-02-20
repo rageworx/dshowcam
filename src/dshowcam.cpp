@@ -4,10 +4,10 @@
 #include <cstdlib>
 
 #ifdef _MSC_VER 
-// It seems to most of M$VC not supports qedit
-#include "qeditimp.h"
+    // It seems to most of M$VC not supports qedit
+    #include "qeditimp.h"
 #else
-#include <qedit.h>
+    #include <qedit.h>
 #endif /// of _MSC_VER
 
 #include "dshowcam.h"
@@ -243,7 +243,7 @@ class DxDShowProperties
             {
                 OAFilterState cstate = 0;
 
-                pControl->GetState( 1000, &cstate );
+                pControl->GetState( DSHOWCAMTK_DEFAULT_TIMEOUT, &cstate );
 
                 if ( cstate != State_Stopped )
                 {
@@ -261,9 +261,9 @@ class DxDShowProperties
 
             if ( pSGrabber != NULL )
             {
-                pSGrabber->SetCallback(NULL, 1);
                 pSGrabber->SetBufferSamples(FALSE);
                 pSGrabber->SetOneShot(FALSE);
+                pSGrabber->SetCallback( NULL, 0 );
             }
 
             _FreeMediaType( ConfigAMT );
@@ -287,8 +287,7 @@ class SampleGrabberCallback : public ISampleGrabberCB
            UserBufferSz( 0 )
         {
             wchar_t tmpEventNm[64] = {0};
-            snwprintf( tmpEventNm, 64, L"FrameGrabEvent%u", \
-                       rand()%0xFFFF );
+            snwprintf( tmpEventNm, 64, L"FrameGrabEvent%p", this );
             hEventGrab = CreateEvent( NULL, FALSE, FALSE, tmpEventNm );
 
 #ifdef DEBUG
@@ -355,25 +354,31 @@ class SampleGrabberCallback : public ISampleGrabberCB
                 doGrabFrame = true;
 
                 // Now wait for event for a second.
-                if ( WaitForSingleObject( hEventGrab, 1000 ) != WAIT_OBJECT_0 )
+                DWORD rDW = WaitForSingleObject( hEventGrab, \
+                                                 DSHOWCAMTK_DEFAULT_TIMEOUT );
+                if ( rDW == WAIT_OBJECT_0 )
                 {
-#ifdef DEBUG
-                    printf( "WaitForSingleObject() failure.\n" );
-#endif
                     doGrabFrame = false;
                 }
+#ifdef DEBUG
+                else
+                {
+                    printf( "WaitForSingleObject() failure.\n" );
+                }
+#endif
+
             }
         }
 
-        unsigned GetBuffer( BYTE* &pOut )
+        size_t GetBuffer( uint8_t* &pOut )
         {
-            unsigned retsz = 0;
+            size_t retsz = 0;
 
             if ( UserBuffer != NULL )
             {
                 if ( UserBufferSz > 0 )
                 {
-                    pOut = new BYTE[ UserBufferSz ];
+                    pOut = new uint8_t[ UserBufferSz ];
                     if ( pOut != NULL )
                     {
                         memcpy( pOut,
@@ -419,12 +424,117 @@ class SampleGrabberCallback : public ISampleGrabberCB
 
     public:
         STDMETHODIMP SampleCB(double Time, IMediaSample *pSample)
-        {
+        {            
+            if ( pSample != NULL )
+            {
+                long   BufferLen = pSample->GetSize();
+                BYTE*  pBuffer   = NULL;
+                
+                pSample->GetPointer( &pBuffer );
+                                                
+                if ( ( BufferLen == 0 ) || ( pBuffer == NULL ) )
+                {
+                    return S_OK;
+                }
+
+                if( ( doGrabFrame == true ) && ( buffLock == false ) )
+                {
+                    if ( GrabConvertedBuffer != NULL )
+                    {
+                        delete[] GrabConvertedBuffer;
+                        GrabConvertedBuffer = NULL;
+                        GrabConvertedBufferSz = 0;
+                    }
+
+                    if ( ( imgWidth > 0 ) && ( imgHeight > 0 ) )
+                    {
+                        switch( enc_type )
+                        {
+                            case DShowCamera::YUYV:
+                                GrabConvertedBufferSz = \
+                                            yuyv2rgb( pBuffer,
+                                                      BufferLen,
+                                                      (void**)&GrabConvertedBuffer,
+                                                      imgWidth,
+                                                      imgHeight );
+                                break;
+
+                            case DShowCamera::YUVY:
+                                GrabConvertedBufferSz = \
+                                            yuyv2rgb( pBuffer,
+                                                      BufferLen,
+                                                      (void**)&GrabConvertedBuffer,
+                                                      imgWidth,
+                                                      imgHeight );
+                                break;
+
+                            case DShowCamera::RGB555:
+                                GrabConvertedBufferSz = \
+                                            rgb555rgb( pBuffer,
+                                                       BufferLen,
+                                                       (void**)&GrabConvertedBuffer,
+                                                       imgWidth,
+                                                       imgHeight );
+                                break;
+
+                            case DShowCamera::RGB565:
+                                GrabConvertedBufferSz = \
+                                            rgb565rgb( pBuffer,
+                                                       BufferLen,
+                                                       (void**)&GrabConvertedBuffer,
+                                                       imgWidth,
+                                                       imgHeight );
+                                break;
+                            #ifndef _MSC_VER
+                            case DShowCamera::MJPEG:
+                                GrabConvertedBufferSz = \
+                                    mjpeg2rgb( pBuffer,
+                                                       BufferLen,
+                                                       (void**)&GrabConvertedBuffer,
+                                                       imgWidth,
+                                                       imgHeight );
+                                break;
+                            #endif /// of _MSC_VER
+                            case DShowCamera::BYPASS:
+                                {
+                                    GrabConvertedBuffer = new uint8_t[ BufferLen ];
+                                    if ( GrabConvertedBuffer != NULL )
+                                    {
+                                        memcpy( GrabConvertedBuffer, pBuffer, BufferLen );
+                                        GrabConvertedBufferSz = BufferLen;
+                                    }
+                                }
+                                break;
+                        }
+                    }
+
+                    // Copy converted buffer when it ready to exported.
+                    if ( ( UserBuffer == NULL ) && ( UserBufferSz == 0 ) &&
+                         ( GrabConvertedBufferSz > 0 ) )
+                    {
+                        UserBufferSz = GrabConvertedBufferSz;
+                        UserBuffer = new BYTE[ UserBufferSz ];
+                        if ( UserBuffer != NULL )
+                        {
+                            memcpy( UserBuffer, GrabConvertedBuffer, UserBufferSz );
+                        }
+                        else
+                        {
+                            UserBufferSz = 0;
+                        }
+                    }
+
+                    buffLock = false;
+                    doGrabFrame = false;
+
+                    SetEvent( hEventGrab );
+                }
+            }
             return S_OK;
         }
 
         STDMETHODIMP BufferCB(double Time, BYTE* pBuffer, long BufferLen)
-        {
+        {            
             if ( ( pBuffer == NULL ) || ( BufferLen == 0 ) )
             {
                 return E_UNEXPECTED;
@@ -490,7 +600,7 @@ class SampleGrabberCallback : public ISampleGrabberCB
                         #endif /// of _MSC_VER
                         case DShowCamera::BYPASS:
                             {
-                                GrabConvertedBuffer = new unsigned char[ BufferLen ];
+                                GrabConvertedBuffer = new uint8_t[ BufferLen ];
                                 if ( GrabConvertedBuffer != NULL )
                                 {
                                     memcpy( GrabConvertedBuffer, pBuffer, BufferLen );
@@ -530,11 +640,11 @@ class SampleGrabberCallback : public ISampleGrabberCB
         bool        doGrabFrame;
         bool        buffLock;
         BYTE*       GrabConvertedBuffer;
-        unsigned    GrabConvertedBufferSz;
+        uint32_t    GrabConvertedBufferSz;
         BYTE*       UserBuffer;
-        unsigned    UserBufferSz;
-        unsigned    imgWidth;
-        unsigned    imgHeight;
+        uint32_t    UserBufferSz;
+        uint32_t    imgWidth;
+        uint32_t    imgHeight;
         HANDLE      hEventGrab;
 
     private:
@@ -550,7 +660,8 @@ DShowCamera::DShowCamera()
    bConfigured( false ),
    bPolling( false ),
    pSGCB( NULL ),
-   currentcfgidx(-1)
+   currentcfgidx(-1),
+   currentcamidx(-1)
 {
     _Initialize_DSHOWCOMOBJ();
 }
@@ -763,7 +874,7 @@ bool DShowCamera::SelectConfig( size_t idx )
                     if ( pSGCB != NULL )
                     {
                         dxdsprop->pSGrabber->SetBufferSamples( FALSE );
-                        dxdsprop->pSGrabber->SetCallback( NULL, 1 );
+                        dxdsprop->pSGrabber->SetCallback( NULL, 0 );
 
                         delete pSGCB;
 
@@ -777,10 +888,9 @@ bool DShowCamera::SelectConfig( size_t idx )
                             pSGCB->Size( pVih->bmiHeader.biWidth,
                                          pVih->bmiHeader.biHeight );
 
-                            dxdsprop->pSGrabber->SetCallback( pSGCB, 1 );
                             dxdsprop->pSGrabber->SetBufferSamples( TRUE );
+                            dxdsprop->pSGrabber->SetCallback( pSGCB, 0 );
                         }
-
                     }
 
                     currentcfgidx = idx;
@@ -807,7 +917,7 @@ bool DShowCamera::GetSetting( SETTING_TYPE settype, CameraSettingItem &item )
     return false;
 }
 
-bool DShowCamera::ApplyManualSetting( SETTING_TYPE settype, long newVal )
+bool DShowCamera::ApplyManualSetting( SETTING_TYPE settype, uint32_t newVal )
 {
     if (settype >= SETTING_TYPE_MAX )
         return false;
@@ -1444,7 +1554,7 @@ bool DShowCamera::StartPoll()
             unsigned retrying = 0;
 
             // test for running state ..
-            dxdsprop->pControl->GetState( 1000, &cstate );
+            dxdsprop->pControl->GetState( DSHOWCAMTK_DEFAULT_TIMEOUT, &cstate );
             if ( cstate == State_Running )
                 return true;
 
@@ -1463,9 +1573,10 @@ bool DShowCamera::StartPoll()
 
             retrying = 0;
 
+            // Let try 100 times !
             while( retrying < 100 )
             {
-                dxdsprop->pControl->GetState( 1000, &cstate );
+                dxdsprop->pControl->GetState( DSHOWCAMTK_DEFAULT_TIMEOUT, &cstate );
 
                 if ( cstate == State_Running )
                 {
@@ -1496,7 +1607,7 @@ bool DShowCamera::StopPoll()
         {
             OAFilterState cstate = 0;
 
-            dxdsprop->pControl->GetState( 1000, &cstate );
+            dxdsprop->pControl->GetState( DSHOWCAMTK_DEFAULT_TIMEOUT, &cstate );
 
             if ( cstate != State_Stopped )
             {
@@ -1533,7 +1644,7 @@ bool DShowCamera::SetGrabRaw( bool onoff )
     return false;
 }
 
-bool DShowCamera::GrabAFrame( unsigned char* &buff, unsigned &bufflen )
+bool DShowCamera::GrabAFrame( uint8_t* &buff, size_t &bufflen )
 {
     if ( dxdsprop != NULL )
     {
@@ -1541,14 +1652,13 @@ bool DShowCamera::GrabAFrame( unsigned char* &buff, unsigned &bufflen )
         {
             OAFilterState cstate = 0;
 
-            dxdsprop->pControl->GetState( 100, &cstate );
+            dxdsprop->pControl->GetState( DSHOWCAMTK_DEFAULT_TIMEOUT, &cstate );
 
             if ( cstate == State_Running )
             {
                 pSGCB->Grab();
-                BYTE* tmpbuff = NULL;
                 bufflen = pSGCB->GetBuffer( buff );
-
+                
                 return true;
             }
 #ifdef DEBUG
@@ -1568,7 +1678,7 @@ bool DShowCamera::GrabAFrame( unsigned char* &buff, unsigned &bufflen )
     return false;
 }
 
-bool DShowCamera::GrabTriggered( unsigned char* &buff, unsigned &bufflen )
+bool DShowCamera::GrabTriggered( uint8_t* &buff, size_t &bufflen )
 {
     if ( dxdsprop != NULL )
     {
@@ -1674,6 +1784,7 @@ bool DShowCamera::initDevice( size_t idx )
 
             if ( retb == true )
             {
+                currentcamidx = idx;
                 enumerateConfigs();
                 retb = configureDevice();
             }
@@ -1768,7 +1879,8 @@ bool DShowCamera::configureDevice()
         {
             if ( dxdsprop->pGraph == NULL )
             {
-                CoCreateInstance( CLSID_FilterGraphNoThread,
+                // was CLSID_FilterGraphNoThread
+                CoCreateInstance( CLSID_FilterGraph,
                                   NULL,
                                   CLSCTX_INPROC_SERVER,
                                   IID_PPV_ARGS(&dxdsprop->pGraph) );
@@ -1776,6 +1888,8 @@ bool DShowCamera::configureDevice()
 
             if ( dxdsprop->pGraph != NULL )
             {
+                wchar_t tmpfn[40] = {0};
+                
                 // Find Event Trigger.
                 dxdsprop->pGraph->QueryInterface( IID_IMediaEvent,
                                                   (LPVOID*)&dxdsprop->pEventTrigger );
@@ -1786,8 +1900,8 @@ bool DShowCamera::configureDevice()
                     pGraph->QueryInterface( IID_PPV_ARGS(&dxdsprop->pControl) );
                 }
 
-                dxdsprop->pGraph->AddFilter( dxdsprop->pCameraFilter,
-                                                L"Capture Source" );
+                snwprintf( tmpfn, 40, L"Capture Source %u", currentcamidx );
+                dxdsprop->pGraph->AddFilter( dxdsprop->pCameraFilter, tmpfn );
 
                 if ( dxdsprop->pGrabberFilter == NULL )
                 {
@@ -1799,15 +1913,15 @@ bool DShowCamera::configureDevice()
 
                 if ( dxdsprop->pGrabberFilter != NULL )
                 {
-                    dxdsprop->pGraph->AddFilter( dxdsprop->pGrabberFilter,
-                                                    L"Sample Grabber" );
+                    snwprintf( tmpfn, 40, L"Sample Grabber %u", currentcamidx );
+                    dxdsprop->pGraph->AddFilter( dxdsprop->pGrabberFilter, \
+                                                 tmpfn );
 
                     if ( dxdsprop->pSGrabber == NULL )
                     {
                         dxdsprop->\
                         pGrabberFilter->\
                         QueryInterface( IID_ISampleGrabber, (LPVOID*)&dxdsprop->pSGrabber );
-                        //QueryInterface( IID_PPV_ARGS(&dxdsprop->pSGrabber) );
                     }
                 }
 
@@ -1851,8 +1965,10 @@ bool DShowCamera::configureDevice()
 
                 if ( dxdsprop->pNullFilter != NULL )
                 {
-                    dxdsprop->pGraph->AddFilter( dxdsprop->pNullFilter,
-                                                 L"NULL Renderer Filter" );
+                    snwprintf( tmpfn, 40, L"NULL Renderer Filter %u", \
+                               currentcamidx );
+                    
+                    dxdsprop->pGraph->AddFilter( dxdsprop->pNullFilter, tmpfn );
                     ConnectFilters( dxdsprop->pGraph,
                                     dxdsprop->pGrabberFilter,
                                     dxdsprop->pNullFilter );
@@ -1861,7 +1977,6 @@ bool DShowCamera::configureDevice()
                 // Find Event Trigger.
                 dxdsprop->pGraph->QueryInterface( IID_IMediaEvent,
                                                   (LPVOID*)&dxdsprop->pEventTrigger );
-
             }
 
             if ( dxdsprop->pSGrabber != NULL )
@@ -1871,9 +1986,9 @@ bool DShowCamera::configureDevice()
                     pSGCB = new SampleGrabberCallback( cfgitems[0].encodedtype );
                 }
 
-                dxdsprop->pSGrabber->SetOneShot( FALSE );
-                dxdsprop->pSGrabber->SetCallback( pSGCB, 1 );
+                dxdsprop->pSGrabber->SetOneShot( TRUE );
                 dxdsprop->pSGrabber->SetBufferSamples( TRUE );
+                dxdsprop->pSGrabber->SetCallback( pSGCB, 0 );
             }
 
             readDeviceSettings();
@@ -2148,11 +2263,11 @@ void DShowCamera::enumerateConfigs()
                                 else
                                     if (pmtCfg->subtype == MEDIASUBTYPE_RGB565)
                                         newcfgitem.encodedtype = DShowCamera::RGB565;
-                            #ifndef _MSC_VER
+#ifndef _MSC_VER
                                 else
                                     if (pmtCfg->subtype == MEDIASUBTYPE_MJPG)
                                         newcfgitem.encodedtype = DShowCamera::MJPEG;
-                            #endif /// of _MSC_VER
+#endif /// of _MSC_VER
                                 
                                 newcfgitem.width  = pVih->bmiHeader.biWidth;
                                 newcfgitem.height = pVih->bmiHeader.biHeight;

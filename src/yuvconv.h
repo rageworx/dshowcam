@@ -1,7 +1,7 @@
 #ifndef __YUVCONV_H__
 #define __YUVCONV_H__
 
-unsigned yuyv2rgb(void* in, unsigned sz, void** out,unsigned width, unsigned height );
-unsigned yuvy2rgb(void* in, unsigned sz, void** out, unsigned width, unsigned height );
+size_t yuyv2rgb( void* in, size_t sz, void** out, uint32_t width, uint32_t height );
+size_t yuvy2rgb( void* in, size_t sz, void** out, uint32_t width, uint32_t height );
 
 #endif // __YUVCONV_H__
