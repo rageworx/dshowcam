@@ -263,7 +263,7 @@ class DxDShowProperties
             {
                 pSGrabber->SetBufferSamples(FALSE);
                 pSGrabber->SetOneShot(FALSE);
-                pSGrabber->SetCallback( NULL, 0 );
+                pSGrabber->SetCallback( NULL, 1 );
             }
 
             _FreeMediaType( ConfigAMT );
@@ -446,11 +446,15 @@ class SampleGrabberCallback : public ISampleGrabberCB
                         GrabConvertedBufferSz = 0;
                     }
 
+                    size_t imgesz = imgWidth * imgHeight;
+
                     if ( ( imgWidth > 0 ) && ( imgHeight > 0 ) )
                     {
                         switch( enc_type )
                         {
                             case DShowCamera::YUYV:
+                                imgesz *= 2;
+                                if ( BufferLen == imgesz )
                                 GrabConvertedBufferSz = \
                                             yuyv2rgb( pBuffer,
                                                       BufferLen,
@@ -460,6 +464,8 @@ class SampleGrabberCallback : public ISampleGrabberCB
                                 break;
 
                             case DShowCamera::YUVY:
+                                imgesz *= 2;
+                                if ( BufferLen == imgesz )
                                 GrabConvertedBufferSz = \
                                             yuyv2rgb( pBuffer,
                                                       BufferLen,
@@ -469,6 +475,8 @@ class SampleGrabberCallback : public ISampleGrabberCB
                                 break;
 
                             case DShowCamera::RGB555:
+                                imgesz *= 2;
+                                if ( BufferLen == imgesz )
                                 GrabConvertedBufferSz = \
                                             rgb555rgb( pBuffer,
                                                        BufferLen,
@@ -478,6 +486,8 @@ class SampleGrabberCallback : public ISampleGrabberCB
                                 break;
 
                             case DShowCamera::RGB565:
+                                imgesz *= 2;
+                                if ( BufferLen == imgesz )
                                 GrabConvertedBufferSz = \
                                             rgb565rgb( pBuffer,
                                                        BufferLen,
@@ -848,7 +858,7 @@ bool DShowCamera::SelectConfig( size_t idx )
 
             int iCount = 0;
             int iSize = 0;
-            size_t realidx = cfgitems[ idx ].realindex;
+            ULONG realidx = cfgitems[ idx ].realindex;
 
             pConfig->GetNumberOfCapabilities( &iCount, &iSize );
 
@@ -866,40 +876,55 @@ bool DShowCamera::SelectConfig( size_t idx )
                         _FreeMediaType( dxdsprop->ConfigAMT );
                     }
 
-                    pConfig->SetFormat( pmtCfg );
+                    hr = pConfig->SetFormat( pmtCfg );
 
-                    _CopyMediaType( &dxdsprop->ConfigAMT, pmtCfg );
-                    _DeleteMediaType( pmtCfg );
-
-                    if ( pSGCB != NULL )
+                    if ( SUCCEEDED(hr) )
                     {
-                        dxdsprop->pSGrabber->SetBufferSamples( FALSE );
-                        dxdsprop->pSGrabber->SetCallback( NULL, 0 );
-
-                        delete pSGCB;
-
-                        pSGCB = new SampleGrabberCallback( cfgitems[idx].encodedtype );
+                        _CopyMediaType( &dxdsprop->ConfigAMT, pmtCfg );
+                        _DeleteMediaType( pmtCfg );
 
                         if ( pSGCB != NULL )
                         {
-                            VIDEOINFOHEADER *pVih = \
-                            (VIDEOINFOHEADER*)dxdsprop->ConfigAMT.pbFormat;
-    
-                            pSGCB->Size( pVih->bmiHeader.biWidth,
-                                         pVih->bmiHeader.biHeight );
+                            dxdsprop->pSGrabber->SetBufferSamples( FALSE );
+                            dxdsprop->pSGrabber->SetCallback( NULL, 1 );
 
-                            dxdsprop->pSGrabber->SetBufferSamples( TRUE );
-                            dxdsprop->pSGrabber->SetCallback( pSGCB, 0 );
+                            delete pSGCB;
+                            pSGCB = NULL;
+                            pSGCB = new SampleGrabberCallback( cfgitems[idx].encodedtype );
+
+                            if ( pSGCB != NULL )
+                            {
+                                VIDEOINFOHEADER *pVih = \
+                                (VIDEOINFOHEADER*)dxdsprop->ConfigAMT.pbFormat;
+        
+                                pSGCB->Size( pVih->bmiHeader.biWidth,
+                                             pVih->bmiHeader.biHeight );
+#ifdef DEBUG
+                                printf( "(debug)Changed format w:h = %llux%llu\n",
+                                        pVih->bmiHeader.biWidth,
+                                        pVih->bmiHeader.biHeight );
+                                fflush( stdout );
+#endif /// of DEBUG
+                                dxdsprop->pSGrabber->SetBufferSamples( TRUE );
+                                dxdsprop->pSGrabber->SetCallback( pSGCB, 1 );
+                            }
                         }
-                    }
 
-                    currentcfgidx = idx;
-                    dxdsprop->bConfigured = true;
-                    bConfigured = true;
+                        currentcfgidx = idx;
+                        dxdsprop->bConfigured = true;
+                        bConfigured = true;
+                    }
+                }
+                else
+                {
+                    dxdsprop->bConfigured = false;
+                    bConfigured = false;
                 }
             }
 
             _SafeRelease( pConfig );
+
+            return bConfigured;
         }
     }
 
@@ -1879,8 +1904,9 @@ bool DShowCamera::configureDevice()
         {
             if ( dxdsprop->pGraph == NULL )
             {
-                // was CLSID_FilterGraphNoThread
-                CoCreateInstance( CLSID_FilterGraph,
+                // CLSID_FilterGraph or ...
+                // CLSID_FilterGraphNoThread
+                CoCreateInstance( CLSID_FilterGraphNoThread,
                                   NULL,
                                   CLSCTX_INPROC_SERVER,
                                   IID_PPV_ARGS(&dxdsprop->pGraph) );
@@ -1988,7 +2014,7 @@ bool DShowCamera::configureDevice()
 
                 dxdsprop->pSGrabber->SetOneShot( TRUE );
                 dxdsprop->pSGrabber->SetBufferSamples( TRUE );
-                dxdsprop->pSGrabber->SetCallback( pSGCB, 0 );
+                dxdsprop->pSGrabber->SetCallback( pSGCB, 1 );
             }
 
             readDeviceSettings();

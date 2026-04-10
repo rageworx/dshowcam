@@ -61,7 +61,7 @@ size_t yuyv2rgb( void* in, size_t sz, void** out, uint32_t width, uint32_t heigh
 
     *out = prgb;
 
-    return width * height * 3;
+    return size_t(prgb_que - prgb);
 }
 
 #define IUYVY2RGB_2(pyuv, prgb) { \
@@ -106,5 +106,5 @@ size_t yuvy2rgb( void* in, size_t sz, void** out, uint32_t width, uint32_t heigh
 
     *out = prgb;
 
-    return width * height *3;
+    return size_t(prgb_que - prgb);
 }

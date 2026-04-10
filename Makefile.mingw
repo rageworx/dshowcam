@@ -36,7 +36,7 @@ CFLAGS += $(DEFS)
 CFLAGS += $(COPTS)
 
 # LINK FLAG
-LFLAGS  = -g
+# LFLAGS  = -g
 LFLAGS += -L$(LOCL_PATH)
 LFLAGS += -ljpeg
 LFLAGS += $(LIBWIN32S)
