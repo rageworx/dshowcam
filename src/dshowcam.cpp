@@ -817,6 +817,7 @@ void DShowCamera::EnermateDevice( DeviceInfos* retDeviceInfos )
 
             if (pEnumMoniker == NULL)
             {
+                _SafeRelease( pCDevEnum );
                 _SafeRelease( pEnumMoniker );
                 return;
             }
@@ -856,6 +857,8 @@ void DShowCamera::EnermateDevice( DeviceInfos* retDeviceInfos )
 
                     if ( newCDIavailed == false )
                         newCDIavailed = true;
+
+                    VariantClear(&var);
                 }
 
                 pPropertyBag->Read( L"Description", &var, 0);
@@ -865,6 +868,8 @@ void DShowCamera::EnermateDevice( DeviceInfos* retDeviceInfos )
 
                     if ( newCDIavailed == false )
                         newCDIavailed = true;
+
+                    VariantClear(&var);
                 }
 
                 pPropertyBag->Read( L"DevicePath", &var, 0);
@@ -874,6 +879,8 @@ void DShowCamera::EnermateDevice( DeviceInfos* retDeviceInfos )
 
                     if ( newCDIavailed == false )
                         newCDIavailed = true;
+
+                    VariantClear(&var);
                 }
 
                 VariantClear(&var);
