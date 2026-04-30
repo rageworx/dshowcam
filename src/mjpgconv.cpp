@@ -166,6 +166,8 @@ bool mjpeg2rgb( void* in, size_t sz, void** out, uint32_t width, uint32_t height
 
     if (setjmp(jerr.jmp))
     {
+        // Gemini recommended to delete this, :)
+        delete[] prgb;
         jpeg_destroy_decompress(&dinfo);
         return false;
     }

@@ -79,13 +79,14 @@ static void _Finalize_DSHOWCOMOBJ()
 #ifndef NO_AUTO_COMOBJ_INIT
     if ( ( _COMOBJ_REFCOUNT > 0 ) && ( _COMOBJ_INIT == true ) )
     {
-        if ( _COMOBJ_REFCOUNT == 1 )
+        _COMOBJ_REFCOUNT--;
+
+        if ( _COMOBJ_REFCOUNT == 0 )
         {
             CoUninitialize();
             _COMOBJ_INIT = false;
         }
 
-        _COMOBJ_REFCOUNT--;
     }
 #endif /// of NO_AUTO_COMOBJ_INIT
 }
@@ -176,6 +177,100 @@ void PrintMediaType( int idx, AM_MEDIA_TYPE *pmt)
     }
 }
 
+// A short tool to disconnect all PINs from IGraphBuider!
+static void DisconnectAllPins(IGraphBuilder* pGraph)
+{
+    if ( pGraph == NULL ) 
+    {
+        return;
+    }
+
+    IEnumFilters* pFilterEnum = NULL;
+    
+    if (FAILED(pGraph->EnumFilters(&pFilterEnum)))
+    {
+        return;
+    }
+
+    IBaseFilter* pFilter = NULL;
+
+    while ( pFilterEnum->Next( 1, &pFilter, NULL ) == S_OK )
+    {
+        IEnumPins* pPinEnum = NULL;
+
+        if ( SUCCEEDED( pFilter->EnumPins( &pPinEnum ) ) )
+        {
+            IPin* pPin = NULL;
+
+            while ( pPinEnum->Next(1, &pPin, nullptr) == S_OK )
+            {
+                IPin* pConnectedPin = NULL;
+
+                if ( SUCCEEDED( pPin->ConnectedTo( &pConnectedPin ) ) )
+                {
+                    pGraph->Disconnect( pPin );
+                    pGraph->Disconnect( pConnectedPin );
+                    pConnectedPin->Release();
+                }
+                _SafeRelease( pPin );
+            }
+            _SafeRelease( pPinEnum );
+        }
+        _SafeRelease( pFilter );
+    }
+    _SafeRelease( pFilterEnum );
+}
+
+static void DisconnectAllPinsEx(ICaptureGraphBuilder2* pGrp2)
+{
+    if ( pGrp2 == NULL )
+    {
+        return;
+    }
+
+    IGraphBuilder* pGraph = NULL;
+
+    if ( FAILED( pGrp2->GetFiltergraph( &pGraph ) ) )
+    {
+        return;
+    }
+
+    IEnumFilters* pFilterEnum = NULL;
+
+    if ( SUCCEEDED( pGraph->EnumFilters( &pFilterEnum ) ) )
+    {
+        IBaseFilter* pFilter = NULL;
+
+        while ( pFilterEnum->Next( 1, &pFilter, NULL ) == S_OK )
+        {
+            IEnumPins* pPinEnum = NULL;
+
+            if ( SUCCEEDED( pFilter->EnumPins( &pPinEnum ) ) )
+            {
+                IPin* pPin = NULL;
+
+                while ( pPinEnum->Next( 1, &pPin, NULL ) == S_OK )
+                {
+                    IPin* pConnectedPin = NULL;
+
+                    if ( SUCCEEDED( pPin->ConnectedTo( &pConnectedPin ) ) )
+                    {
+                        pGraph->Disconnect( pPin );
+                        pGraph->Disconnect( pConnectedPin );
+                        _SafeRelease( pConnectedPin );
+                    }
+                    _SafeRelease( pPin );
+                }
+                _SafeRelease( pPinEnum );
+            }
+            _SafeRelease( pFilter );
+        }
+        _SafeRelease( pFilterEnum );
+    }
+    _SafeRelease( pGraph );
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -206,6 +301,12 @@ class DxDShowProperties
         {
             finalizeControl();
 
+            if ( pGraph != NULL )
+            {
+                DisconnectAllPins( pGraph );
+            }
+
+            _SafeRelease(pVideoControl);
             _SafeRelease(pEventTrigger);
             _SafeRelease(pCameraFilter);
             _SafeRelease(pNullFilter);
@@ -218,17 +319,13 @@ class DxDShowProperties
         }
 
     public:
-        ICreateDevEnum*         pSysDevEnum;
-        IEnumMoniker*           pEnumCams;
-        IMoniker*               pIMon;
-        IBaseFilter*            pCameraFilter;
-
         IGraphBuilder*          pGraph;
         ICaptureGraphBuilder2*  pCGB;
         IMediaControl*          pControl;
         IBaseFilter*            pGrabberFilter;
         ISampleGrabber*         pSGrabber;
         IBaseFilter*            pSourceFilter;
+        IBaseFilter*            pCameraFilter;
         IBaseFilter*            pNullFilter;
         IMediaEvent*            pEventTrigger;
         IAMVideoControl*        pVideoControl;
@@ -293,8 +390,9 @@ class SampleGrabberCallback : public ISampleGrabberCB
 #ifdef DEBUG
             if ( enc_type >= DShowCamera::ENCODE_TYPE_MAX )
             {
-                printf( "Error : Encode type out of range (%u) ?!\n",
-                       enc_type );
+                fprintf( stderr,
+                         "Error : Encode type out of range (%u) ?!\n",
+                         enc_type );
             }
 #endif /// of DEBUG
         }
@@ -312,12 +410,14 @@ class SampleGrabberCallback : public ISampleGrabberCB
             if ( GrabConvertedBuffer != NULL )
             {
                 delete[] GrabConvertedBuffer;
+                GrabConvertedBuffer = NULL;
                 GrabConvertedBufferSz = 0;
             }
 
             if ( UserBuffer != NULL )
             {
                 delete[] UserBuffer;
+                UserBuffer = NULL;
                 UserBufferSz = 0;
             }
         }
@@ -439,13 +539,6 @@ class SampleGrabberCallback : public ISampleGrabberCB
 
                 if( ( doGrabFrame == true ) && ( buffLock == false ) )
                 {
-                    if ( GrabConvertedBuffer != NULL )
-                    {
-                        delete[] GrabConvertedBuffer;
-                        GrabConvertedBuffer = NULL;
-                        GrabConvertedBufferSz = 0;
-                    }
-
                     size_t imgesz = imgWidth * imgHeight;
 
                     if ( ( imgWidth > 0 ) && ( imgHeight > 0 ) )
@@ -495,7 +588,7 @@ class SampleGrabberCallback : public ISampleGrabberCB
                                                        imgWidth,
                                                        imgHeight );
                                 break;
-                            #ifndef _MSC_VER
+#ifndef _MSC_VER
                             case DShowCamera::MJPEG:
                                 GrabConvertedBufferSz = \
                                     mjpeg2rgb( pBuffer,
@@ -504,7 +597,7 @@ class SampleGrabberCallback : public ISampleGrabberCB
                                                        imgWidth,
                                                        imgHeight );
                                 break;
-                            #endif /// of _MSC_VER
+#endif /// of _MSC_VER
                             case DShowCamera::BYPASS:
                                 {
                                     GrabConvertedBuffer = new uint8_t[ BufferLen ];
@@ -527,6 +620,9 @@ class SampleGrabberCallback : public ISampleGrabberCB
                         if ( UserBuffer != NULL )
                         {
                             memcpy( UserBuffer, GrabConvertedBuffer, UserBufferSz );
+                            delete[] GrabConvertedBuffer;
+                            GrabConvertedBuffer = NULL;
+                            GrabConvertedBufferSz = 0;
                         }
                         else
                         {
@@ -552,13 +648,6 @@ class SampleGrabberCallback : public ISampleGrabberCB
 
             if( ( doGrabFrame == true ) && ( buffLock == false ) )
             {
-                if ( GrabConvertedBuffer != NULL )
-                {
-                    delete[] GrabConvertedBuffer;
-                    GrabConvertedBuffer = NULL;
-                    GrabConvertedBufferSz = 0;
-                }
-
                 if ( ( imgWidth > 0 ) && ( imgHeight > 0 ) )
                 {
                     switch( enc_type )
@@ -637,6 +726,13 @@ class SampleGrabberCallback : public ISampleGrabberCB
                     }
                 }
 
+                if ( GrabConvertedBuffer != NULL )
+                {
+                    delete[] GrabConvertedBuffer;
+                    GrabConvertedBuffer = NULL;
+                    GrabConvertedBufferSz = 0;
+                }
+
                 buffLock = false;
                 doGrabFrame = false;
 
@@ -683,6 +779,12 @@ DShowCamera::~DShowCamera()
         _SafeRelease( pSGCB );
     }
 
+    if ( dxdsprop != NULL )
+    {
+        delete dxdsprop;
+        dxdsprop = NULL;
+    }
+
     _Finalize_DSHOWCOMOBJ();
 }
 
@@ -710,7 +812,7 @@ void DShowCamera::EnermateDevice( DeviceInfos* retDeviceInfos )
 
             if (pEnumMoniker == NULL)
             {
-                pCDevEnum->Release();
+                _SafeRelease( pEnumMoniker );
                 return;
             }
         }
@@ -1306,8 +1408,6 @@ bool DShowCamera::ApplyAutoSetting( SETTING_TYPE settype )
 
             if ( ( settype == EXPOSURE ) || ( settype == FOCUS ) )
             {
-                HRESULT hr = S_FALSE;
-
                 hr = pDF->QueryInterface( IID_IAMCameraControl, (LPVOID*)&pCamCtrl );
             }
             else
@@ -1319,6 +1419,13 @@ bool DShowCamera::ApplyAutoSetting( SETTING_TYPE settype )
 
     if ( ( pCamCtrl == NULL ) && ( pProcAmp == NULL ) )
         return false;
+
+    if ( hr == S_FALSE )
+    {
+        _SafeRelease( pProcAmp );
+        _SafeRelease( pCamCtrl );
+        return false;
+    }
 
     bool retb = false;
 
@@ -1885,6 +1992,8 @@ bool DShowCamera::connectDevice( size_t idx )
                              "#WARNING: Failed to get Video control ...\n" );
                 }
             }
+
+            _SafeRelease( pMoniker );
         }
 
         _SafeRelease( pEnumMoniker );
@@ -1962,7 +2071,7 @@ bool DShowCamera::configureDevice()
 
                 IEnumPins* pEnum = NULL;
 
-                if ( dxdsprop->pCameraFilter->EnumPins( &pEnum) == S_OK )
+                if ( dxdsprop->pCameraFilter->EnumPins( &pEnum ) == S_OK )
                 {
                     IPin* pPin = NULL;
 
@@ -1979,6 +2088,8 @@ bool DShowCamera::configureDevice()
                             break;
                         }
                     }
+
+                    _SafeRelease(pEnum);
                 }
 
                 if ( dxdsprop->pNullFilter == NULL )
