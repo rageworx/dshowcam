@@ -301,11 +301,6 @@ class DxDShowProperties
         {
             finalizeControl();
 
-            if ( pGraph != NULL )
-            {
-                DisconnectAllPins( pGraph );
-            }
-
             _SafeRelease(pVideoControl);
             _SafeRelease(pEventTrigger);
             _SafeRelease(pCameraFilter);
@@ -361,6 +356,16 @@ class DxDShowProperties
                 pSGrabber->SetBufferSamples(FALSE);
                 pSGrabber->SetOneShot(FALSE);
                 pSGrabber->SetCallback( NULL, 1 );
+            }
+
+            if ( pCGB != NULL )
+            {
+                DisconnectAllPinsEx( pCGB );
+            }
+
+            if ( pGraph != NULL )
+            {
+                DisconnectAllPins( pGraph );
             }
 
             _FreeMediaType( ConfigAMT );
