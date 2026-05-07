@@ -35,10 +35,12 @@ void prtlist( DShowCamera*& p )
 
 void capture( DShowCamera*& p, size_t idx )
 {
-    if ( p == nullptr )
+    if ( p != nullptr )
     {
-        p = new DShowCamera;
+        delete p;
     }
+
+    p = new DShowCamera;
 
     if ( p != nullptr )
     {
@@ -80,14 +82,14 @@ void capture( DShowCamera*& p, size_t idx )
             return;
         }
 
-        // CloseDevice() always return "true".
-        p->CloseDevice();
+        delete p;
+        p = nullptr;
     }
 }
 
 int main( int argc, char** argv )
 {
-    // DShowCamera::InitInstance();
+    DShowCamera::InitInstance();
 
     DShowCamera* dsc = nullptr;
     size_t       idx = 0;
@@ -167,7 +169,7 @@ int main( int argc, char** argv )
         dsc = NULL;
     }
 
-    // DShowCamera::ReleaseInstance();
+    DShowCamera::ReleaseInstance();
 
     return 0;
 }

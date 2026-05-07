@@ -210,7 +210,7 @@ static void DisconnectAllPins(IGraphBuilder* pGraph)
                 {
                     pGraph->Disconnect( pPin );
                     pGraph->Disconnect( pConnectedPin );
-                    pConnectedPin->Release();
+                    _SafeRelease( pConnectedPin );
                 }
                 _SafeRelease( pPin );
             }
@@ -309,8 +309,8 @@ class DxDShowProperties
             _SafeRelease(pSGrabber);
             _SafeRelease(pGrabberFilter);
             _SafeRelease(pControl);
-            _SafeRelease(pCGB);
-            _SafeRelease(pGraph);
+            _ForceRelease(pCGB);
+            _ForceRelease(pGraph);
         }
 
     public:
@@ -404,6 +404,8 @@ class SampleGrabberCallback : public ISampleGrabberCB
 
         ~SampleGrabberCallback()
         {
+            Release();
+
             CloseHandle( hEventGrab );
 
             if ( doGrabFrame == true )
@@ -1043,6 +1045,17 @@ bool DShowCamera::SelectConfig( size_t idx )
     }
 
     return false;
+}
+
+bool DShowCamera::CloseDevice()
+{
+    if ( dxdsprop != NULL )
+    {
+        delete dxdsprop;
+        dxdsprop = NULL;
+    }
+
+    return true;
 }
 
 bool DShowCamera::GetSetting( SETTING_TYPE settype, CameraSettingItem &item )

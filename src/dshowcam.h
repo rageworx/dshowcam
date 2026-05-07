@@ -107,6 +107,7 @@ class DShowCamera
         bool   GetConfigs( ConfigItems &cfgs );
         bool   SelectDevice( size_t idx );
         bool   SelectConfig( size_t idx );
+        bool   CloseDevice();
         bool   GetSetting( SETTING_TYPE settype, CameraSettingItem &item );
         bool   ApplyManualSetting( SETTING_TYPE settype, uint32_t newVal );
         bool   ApplyAutoSetting( SETTING_TYPE settype );
