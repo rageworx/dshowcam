@@ -38,7 +38,6 @@ static void _Finalize_DSHOWCOMOBJ();
 
 static void _Initialize_DSHOWCOMOBJ()
 {
-#ifndef NO_AUTO_COMOBJ_INIT
     if ( _COMOBJ_INIT == false )
     {
         if ( CoInitialize(NULL) == S_OK )
@@ -51,12 +50,10 @@ static void _Initialize_DSHOWCOMOBJ()
     {
         _COMOBJ_REFCOUNT++;
     }
-#endif /// of NO_AUTO_COMOBJ_INIT
 }
 
 static void _Finalize_DSHOWCOMOBJ()
 {
-#ifndef NO_AUTO_COMOBJ_INIT
     if ( ( _COMOBJ_REFCOUNT > 0 ) && ( _COMOBJ_INIT == true ) )
     {
         _COMOBJ_REFCOUNT--;
@@ -66,9 +63,7 @@ static void _Finalize_DSHOWCOMOBJ()
             CoUninitialize();
             _COMOBJ_INIT = false;
         }
-
     }
-#endif /// of NO_AUTO_COMOBJ_INIT
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -688,16 +683,14 @@ DShowCamera::~DShowCamera()
         dxdsprop = NULL;
     }
 
-    if ( camDevInfo.size() > 0 )
-        DeviceInfos().swap( camDevInfo );
+    if ( camDevInfo.size() > 0 ) camDevInfo.clear();
 }
 
 void DShowCamera::EnermateDevice( DeviceInfos* retDeviceInfos )
 {
     if ( _COMOBJ_INIT == true )
     {
-        if ( camDevInfo.size() > 0 )
-            DeviceInfos().swap( camDevInfo );
+        if ( camDevInfo.size() > 0 ) camDevInfo.clear();
 
         ICreateDevEnum* pCDevEnum = NULL;
         IEnumMoniker*   pEnumMoniker = NULL;
@@ -722,6 +715,13 @@ void DShowCamera::EnermateDevice( DeviceInfos* retDeviceInfos )
             }
         }
 
+        if (pEnumMoniker == NULL)
+        {
+            fprintf( stderr, "pEnumMoniker=%p, pCDevEnum=%p !\n", 
+                     pEnumMoniker, pCDevEnum );
+            return;
+        }
+        
         pEnumMoniker->Reset();
 
         IMoniker* pMoniker = NULL;
