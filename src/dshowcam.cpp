@@ -1,10 +1,13 @@
 #include <windows.h>
 #include <initguid.h>
+#include <cstdio>
+#include <cstdlib>
+
 #ifdef _MSC_VER 
-// Why latest M$VC not supports qedit ? why ???
-#include "qeditimp.h"
+    // It seems to most of M$VC not supports qedit
+    #include "qeditimp.h"
 #else
-#include <qedit.h>
+    #include <qedit.h>
 #endif /// of _MSC_VER
 
 #include "dshowcam.h"
@@ -19,24 +22,7 @@ using namespace dshowcamtk;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Y8 GUID : 20203859-0000-0010-8000-00AA00389B71
-#ifndef MEDIASUBTYPE_Y8
-DEFINE_GUID(MEDIASUBTYPE_Y8,0x20203859,0x0000,0x0010,\
-                            0x80,0x00,0x000,0xAA,0x00,0x38,0x9B,0x71);
-#endif // MEDIASUBTYPE_Y8
-
-#ifndef _MSC_VER
-// M$VC may not allow to define these, ha !
-#ifndef CLSID_SampleGrabber
-DEFINE_GUID(CLSID_SampleGrabber,0xc1f400a0,0x3f08,0x11d3, \
-                                0x9f,0x0b,0x00,0x60,0x08,0x03,0x9e,0x37);
-#endif // CLSID_SampleGrabber
-
-#ifndef CLSID_NullRenderer
-DEFINE_GUID(CLSID_NullRenderer,0xc1f400a4,0x3f08,0x11d3,\
-                               0x9f,0x0b,0x00,0x60,0x08,0x03,0x9e,0x37);
-#endif // CLSID_NullRenderer
-#endif /// of _MSC_VER
+#define DSHOWCAMTK_DEFAULT_TIMEOUT      ( 1000 )
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,6 +38,7 @@ static void _Finalize_DSHOWCOMOBJ();
 
 static void _Initialize_DSHOWCOMOBJ()
 {
+#ifndef NO_AUTO_COMOBJ_INIT
     if ( _COMOBJ_INIT == false )
     {
         if ( CoInitialize(NULL) == S_OK )
@@ -64,110 +51,28 @@ static void _Initialize_DSHOWCOMOBJ()
     {
         _COMOBJ_REFCOUNT++;
     }
+#endif /// of NO_AUTO_COMOBJ_INIT
 }
 
 static void _Finalize_DSHOWCOMOBJ()
 {
+#ifndef NO_AUTO_COMOBJ_INIT
     if ( ( _COMOBJ_REFCOUNT > 0 ) && ( _COMOBJ_INIT == true ) )
     {
-        if ( _COMOBJ_REFCOUNT == 1 )
+        _COMOBJ_REFCOUNT--;
+
+        if ( _COMOBJ_REFCOUNT == 0 )
         {
             CoUninitialize();
             _COMOBJ_INIT = false;
         }
 
-        _COMOBJ_REFCOUNT--;
     }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-const char* GUID2str(GUID guid)
-{
-    static char retstr[128] = {0};
-
-    sprintf( retstr,
-             "{%08lX-%04hX-%04hX-%02hhX%02hhX-%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX}",
-             guid.Data1,
-             guid.Data2,
-             guid.Data3,
-             guid.Data4[0],
-             guid.Data4[1],
-             guid.Data4[2],
-             guid.Data4[3],
-             guid.Data4[4],
-             guid.Data4[5],
-             guid.Data4[6],
-             guid.Data4[7] );
-
-    return retstr;
-}
-
-void PrintMediaType( int idx, AM_MEDIA_TYPE *pmt)
-{
-    if ( pmt != NULL )
-    {
-        if ( pmt->majortype == MEDIATYPE_Video )
-        {
-            VIDEOINFOHEADER *pVih = (VIDEOINFOHEADER*)pmt->pbFormat;
-
-            RECT rectsrc = pVih->rcSource;
-            DWORD bitrate = pVih->dwBitRate;
-
-            LONG width = pVih->bmiHeader.biWidth;
-            LONG height = pVih->bmiHeader.biHeight;
-            WORD bpp    = pVih->bmiHeader.biBitCount;
-
-            const char* strSub   = "none";
-
-            if ( pmt->subtype == MEDIASUBTYPE_YUYV )
-                strSub = "YUYV";
-            else
-            if ( pmt->subtype == MEDIASUBTYPE_IYUV )
-                strSub = "IYUV";
-            else
-            if ( pmt->subtype == MEDIASUBTYPE_YUY2 )
-                strSub = "YUY2";
-            else
-            if ( pmt->subtype == MEDIASUBTYPE_YVYU )
-                strSub = "YVYU";
-            else
-            if ( pmt->subtype == MEDIASUBTYPE_MJPG )
-                strSub = "MJPG";
-            else
-            if ( pmt->subtype == MEDIASUBTYPE_RGB565 )
-                strSub = "RGB565";
-            else
-            if ( pmt->subtype == MEDIASUBTYPE_RGB555 )
-                strSub = "RGB555";
-            else
-            if ( pmt->subtype == MEDIASUBTYPE_RGB24 )
-                strSub = "RGB24";
-            else
-            if ( pmt->subtype == MEDIASUBTYPE_Y8 )
-                strSub = "Y8";
-            else
-                strSub = GUID2str( pmt->subtype );
-
-            printf( "[%03d] Media sub type : %s, WxHxBPP = %dx%dx%u\n",
-                    idx,
-                    strSub,
-                    width,
-                    height,
-                    bpp );
-        }
-        else
-        {
-            printf( "Error: media major type is not video ! (%d)\n",
-                     pmt->majortype );
-        }
-    }
+#endif /// of NO_AUTO_COMOBJ_INIT
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class DxDShowProperties
@@ -183,6 +88,7 @@ class DxDShowProperties
            pSourceFilter( NULL ),
            pNullFilter( NULL ),
            pEventTrigger( NULL ),
+           pVideoControl( NULL ),
            bConfigured( false )
         {
             // Initialized.
@@ -194,29 +100,40 @@ class DxDShowProperties
         {
             finalizeControl();
 
+            // finalizeControl() detaches callback, stops the graph, drains
+            // IMediaEvent, and removes the filters from the graph.  At this
+            // point only release our interface references.  Release secondary
+            // interfaces before their owning filter interfaces so DEBUG_MEM
+            // ref-count logs are easier to interpret.
             _SafeRelease(pEventTrigger);
-            _SafeRelease(pCameraFilter);
+            _SafeRelease(pControl);
+            _SafeRelease(pVideoControl);
+            // _SafeRelease(pSGrabber);
+
+            // Release the owning filter before the interface obtained from it.
+            // With the SampleGrabber filter, IBaseFilter can still hold the last
+            // internal reference to the ISampleGrabber interface; releasing the
+            // filter first gives pSGrabber a chance to reach refcount 0 in the
+            // DEBUG_MEM log instead of staying at 1 until the filter dies.            
             _SafeRelease(pNullFilter);
             _SafeRelease(pSourceFilter);
-            _SafeRelease(pSGrabber);
             _SafeRelease(pGrabberFilter);
-            _SafeRelease(pControl);
+            _SafeRelease(pCameraFilter);
+            
+            _SafeRelease(pSGrabber);
+            
             _SafeRelease(pCGB);
             _SafeRelease(pGraph);
         }
 
     public:
-        ICreateDevEnum*         pSysDevEnum;
-        IEnumMoniker*           pEnumCams;
-        IMoniker*               pIMon;
-        IBaseFilter*            pCameraFilter;
-
         IGraphBuilder*          pGraph;
         ICaptureGraphBuilder2*  pCGB;
         IMediaControl*          pControl;
-        IBaseFilter*            pGrabberFilter;
         ISampleGrabber*         pSGrabber;
+        IBaseFilter*            pGrabberFilter;
         IBaseFilter*            pSourceFilter;
+        IBaseFilter*            pCameraFilter;
         IBaseFilter*            pNullFilter;
         IMediaEvent*            pEventTrigger;
         IAMVideoControl*        pVideoControl;
@@ -224,37 +141,115 @@ class DxDShowProperties
         AM_MEDIA_TYPE           ConfigAMT;
         bool                    bConfigured;
 
-    protected:
-        void finalizeControl()
+    protected:        
+        void stopFilter(IBaseFilter* pf)
         {
-            if ( pControl != NULL )
+            if ( pf != NULL )
+            {
+                pf->Stop();
+            }
+        }
+        
+        void removeFilter(IBaseFilter* pf)
+        {
+            if ( pf != NULL && pGraph != NULL )
+            {
+                pGraph->RemoveFilter( pf );
+            }
+        }
+        
+        void drainGraphEvents()
+        {
+            if ( pEventTrigger == NULL )
+                return;
+
+            long evCode = 0;
+            LONG_PTR param1 = 0;
+            LONG_PTR param2 = 0;
+
+            // Drain pending EC_* events generated by Stop()/renderer shutdown.
+            // This avoids releasing the graph while quartz/ksproxy worker threads
+            // still have teardown notifications queued.
+            while ( pEventTrigger->GetEvent( &evCode, &param1, &param2, 0 ) == S_OK )
             {
                 OAFilterState cstate = 0;
-
-                pControl->GetState( 100, &cstate );
-
-                if ( cstate != State_Stopped )
-                {
-                    // Here comes to deadlock ....
-                    pControl->Stop();
-                }
-
-                _SafeRelease( pControl );
+                pEventTrigger->FreeEventParams( evCode, param1, param2 );
             }
+        }
+        
+        void waitUntilStopped()
+        {
+            if ( pControl == NULL )
+                return;
 
-            if ( pSourceFilter != NULL )
+            HRESULT hr = S_FALSE;
+            OAFilterState cstate = State_Running;
+ 
+            // Some camera drivers/ksproxy need a real stopped graph before
+            // filters are removed.  Stop once, then wait/poll for Stopped.
+            hr = pControl->Stop();
+
+            // Some UVC/ksproxy stacks return before all streaming/worker threads
+            // have actually quiesced.  Poll briefly instead of releasing graph
+            // objects immediately after Stop().
+            for ( size_t i = 0; i<20; i++ )
             {
-                pSourceFilter->Stop();
+                hr = pControl->GetState( 100, &cstate );
+                if ( ( hr == S_OK ) && ( cstate == State_Stopped ) )
+                    break;
+
+                Sleep( 10 );
             }
 
+            // Give ksproxy one more scheduling slice to finish cancelled IOCTLs.
+            Sleep( 100 );
+            drainGraphEvents();
+        }        
+       
+        void finalizeControl()
+        {
+            waitUntilStopped();
 
-            if ( pSGrabber != NULL )
+            if( pSGrabber != NULL )
             {
-                pSGrabber->SetCallback(NULL, 1);
-                pSGrabber->SetBufferSamples(FALSE);
-                pSGrabber->SetOneShot(FALSE);
+                // Detach the client callback before tearing down the graph so
+                // SampleCB cannot run while filters/pins are being released.                
+                pSGrabber->SetCallback( NULL, 0 );
+                pSGrabber->SetCallback( NULL, 1 );
+                pSGrabber->SetBufferSamples( FALSE );
+                pSGrabber->SetOneShot( FALSE );
             }
 
+            drainGraphEvents();
+
+            // filters are removed/released.  Do not enumerate or disconnect pins
+            // here: several ksproxy/UVC drivers crash while answering pin factory
+            // queries during teardown.
+            _SafeRelease(pVideoControl);
+
+            stopFilter( pNullFilter );            
+            stopFilter( pSourceFilter );
+            stopFilter( pGrabberFilter );            
+            stopFilter( pCameraFilter );
+ 
+            // Remove downstream filters first so IGraphBuilder::~Graph does not
+            // have to tear down the capture graph by itself while ksproxy is still
+            // cancelling streaming IO.  Ignore RemoveFilter() failures; all COM
+            // interfaces are still released below.
+            removeFilter( pNullFilter );
+            removeFilter( pSourceFilter );
+            removeFilter( pGrabberFilter );
+            removeFilter( pCameraFilter );
+
+            drainGraphEvents();
+ 
+            _SafeRelease(pEventTrigger);
+            _SafeRelease(pControl);
+
+            // Do not try to remove the same filters a second time here.
+            // Some ksproxy/UVC stacks are fragile during teardown; repeated
+            // RemoveFilter()/pin capability queries can re-enter the same
+            // driver path that produced KsGetMultiplePinFactoryItems warnings.
             _FreeMediaType( ConfigAMT );
         }
 };
@@ -275,19 +270,24 @@ class SampleGrabberCallback : public ISampleGrabberCB
            UserBuffer( NULL ),
            UserBufferSz( 0 )
         {
-            hEventGrab = CreateEvent( NULL, FALSE, FALSE, L"FrameGrabEvent" );
+            wchar_t tmpEventNm[64] = {0};
+            snwprintf( tmpEventNm, 64, L"FrameGrabEvent%p", this );
+            hEventGrab = CreateEvent( NULL, FALSE, FALSE, tmpEventNm );
 
-#ifdef DEBUG
             if ( enc_type >= DShowCamera::ENCODE_TYPE_MAX )
             {
-                printf( "Error : Encode type out of range (%u) ?!\n",
-                       enc_type );
-            }
+#ifdef DEBUG
+                fprintf( stderr,
+                         "Error : Encode type out of range (%u) ?!\n",
+                         enc_type );
 #endif /// of DEBUG
+                enc_type = DShowCamera::UNSUPPORTED;
+            }
         }
 
         ~SampleGrabberCallback()
         {
+            // Release();
             CloseHandle( hEventGrab );
 
             if ( doGrabFrame == true )
@@ -299,17 +299,34 @@ class SampleGrabberCallback : public ISampleGrabberCB
             if ( GrabConvertedBuffer != NULL )
             {
                 delete[] GrabConvertedBuffer;
+                GrabConvertedBuffer = NULL;
                 GrabConvertedBufferSz = 0;
             }
 
             if ( UserBuffer != NULL )
             {
                 delete[] UserBuffer;
+                UserBuffer = NULL;
                 UserBufferSz = 0;
             }
         }
 
     public:
+        void SetEncodeType(DShowCamera::ENCODE_TYPE et)
+        {
+            enc_type = et;
+            
+            if ( enc_type >= DShowCamera::ENCODE_TYPE_MAX )
+            {
+#ifdef DEBUG
+                fprintf( stderr,
+                         "Error : Encode type out of range (%u) ?!\n",
+                         enc_type );
+#endif /// of DEBUG
+                enc_type = DShowCamera::UNSUPPORTED;
+            }            
+        }
+    
         void Size( unsigned w, unsigned h )
         {
             imgWidth = w;
@@ -341,25 +358,31 @@ class SampleGrabberCallback : public ISampleGrabberCB
                 doGrabFrame = true;
 
                 // Now wait for event for a second.
-                if ( WaitForSingleObject( hEventGrab, 1000 ) != WAIT_OBJECT_0 )
+                DWORD rDW = WaitForSingleObject( hEventGrab, \
+                                                 DSHOWCAMTK_DEFAULT_TIMEOUT );
+                if ( rDW == WAIT_OBJECT_0 )
                 {
-#ifdef DEBUG
-                    printf( "WaitForSingleObject() failure.\n" );
-#endif
                     doGrabFrame = false;
                 }
+#ifdef DEBUG
+                else
+                {
+                    printf( "WaitForSingleObject() failure.\n" );
+                }
+#endif
+
             }
         }
 
-        unsigned GetBuffer( BYTE* &pOut )
+        size_t GetBuffer( uint8_t* &pOut )
         {
-            unsigned retsz = 0;
+            size_t retsz = 0;
 
             if ( UserBuffer != NULL )
             {
                 if ( UserBufferSz > 0 )
                 {
-                    pOut = new BYTE[ UserBufferSz ];
+                    pOut = new uint8_t[ UserBufferSz ];
                     if ( pOut != NULL )
                     {
                         memcpy( pOut,
@@ -385,32 +408,142 @@ class SampleGrabberCallback : public ISampleGrabberCB
         STDMETHODIMP_(ULONG) Release() { return 2; }
         STDMETHODIMP QueryInterface(REFIID riid, void **ppvObject)
         {
-            if (NULL == ppvObject)
+            if ( ppvObject == NULL ) 
                 return E_POINTER;
+            
+            *ppvObject = NULL;
 
-            if (riid == __uuidof(IUnknown))
-            {
+            if ( riid == IID_IUnknown )
                 *ppvObject = static_cast<IUnknown*>(this);
-                 return S_OK;
-            }
-
-            if (riid == CLSID_SampleGrabber)
-            {
+            else 
+            if ( riid == IID_ISampleGrabberCB )
                 *ppvObject = static_cast<ISampleGrabberCB*>(this);
-                 return S_OK;
-            }
+            else
+                return E_NOINTERFACE;
 
+            AddRef();
             return S_OK;
         }
 
     public:
         STDMETHODIMP SampleCB(double Time, IMediaSample *pSample)
-        {
+        {            
+            if ( pSample != NULL )
+            {
+                long   BufferLen = pSample->GetSize();
+                BYTE*  pBuffer   = NULL;
+                
+                pSample->GetPointer( &pBuffer );
+                                                
+                if ( ( BufferLen == 0 ) || ( pBuffer == NULL ) )
+                {
+                    return S_OK;
+                }
+
+                if( ( doGrabFrame == true ) && ( buffLock == false ) )
+                {
+                    size_t imgesz = imgWidth * imgHeight;
+
+                    if ( ( imgWidth > 0 ) && ( imgHeight > 0 ) )
+                    {
+                        switch( enc_type )
+                        {
+                            case DShowCamera::YUYV:
+                                imgesz *= 2;
+                                if ( BufferLen == imgesz )
+                                GrabConvertedBufferSz = \
+                                            yuyv2rgb( pBuffer,
+                                                      BufferLen,
+                                                      (void**)&GrabConvertedBuffer,
+                                                      imgWidth,
+                                                      imgHeight );
+                                break;
+
+                            case DShowCamera::YUVY:
+                                imgesz *= 2;
+                                if ( BufferLen == imgesz )
+                                GrabConvertedBufferSz = \
+                                            yuyv2rgb( pBuffer,
+                                                      BufferLen,
+                                                      (void**)&GrabConvertedBuffer,
+                                                      imgWidth,
+                                                      imgHeight );
+                                break;
+
+                            case DShowCamera::RGB555:
+                                imgesz *= 2;
+                                if ( BufferLen == imgesz )
+                                GrabConvertedBufferSz = \
+                                            rgb555rgb( pBuffer,
+                                                       BufferLen,
+                                                       (void**)&GrabConvertedBuffer,
+                                                       imgWidth,
+                                                       imgHeight );
+                                break;
+
+                            case DShowCamera::RGB565:
+                                imgesz *= 2;
+                                if ( BufferLen == imgesz )
+                                GrabConvertedBufferSz = \
+                                            rgb565rgb( pBuffer,
+                                                       BufferLen,
+                                                       (void**)&GrabConvertedBuffer,
+                                                       imgWidth,
+                                                       imgHeight );
+                                break;
+#ifndef _MSC_VER
+                            case DShowCamera::MJPEG:
+                                GrabConvertedBufferSz = \
+                                    mjpeg2rgb( pBuffer,
+                                                       BufferLen,
+                                                       (void**)&GrabConvertedBuffer,
+                                                       imgWidth,
+                                                       imgHeight );
+                                break;
+#endif /// of _MSC_VER
+                            case DShowCamera::BYPASS:
+                                {
+                                    GrabConvertedBuffer = new uint8_t[ BufferLen ];
+                                    if ( GrabConvertedBuffer != NULL )
+                                    {
+                                        memcpy( GrabConvertedBuffer, pBuffer, BufferLen );
+                                        GrabConvertedBufferSz = BufferLen;
+                                    }
+                                }
+                                break;
+                        }
+                    }
+
+                    // Copy converted buffer when it ready to exported.
+                    if ( ( UserBuffer == NULL ) && ( UserBufferSz == 0 ) &&
+                         ( GrabConvertedBufferSz > 0 ) )
+                    {
+                        UserBufferSz = GrabConvertedBufferSz;
+                        UserBuffer = new BYTE[ UserBufferSz ];
+                        if ( UserBuffer != NULL )
+                        {
+                            memcpy( UserBuffer, GrabConvertedBuffer, UserBufferSz );
+                            delete[] GrabConvertedBuffer;
+                            GrabConvertedBuffer = NULL;
+                            GrabConvertedBufferSz = 0;
+                        }
+                        else
+                        {
+                            UserBufferSz = 0;
+                        }
+                    }
+
+                    buffLock = false;
+                    doGrabFrame = false;
+
+                    SetEvent( hEventGrab );
+                }
+            }
             return S_OK;
         }
 
         STDMETHODIMP BufferCB(double Time, BYTE* pBuffer, long BufferLen)
-        {
+        {            
             if ( ( pBuffer == NULL ) || ( BufferLen == 0 ) )
             {
                 return E_UNEXPECTED;
@@ -418,13 +551,6 @@ class SampleGrabberCallback : public ISampleGrabberCB
 
             if( ( doGrabFrame == true ) && ( buffLock == false ) )
             {
-                if ( GrabConvertedBuffer != NULL )
-                {
-                    delete[] GrabConvertedBuffer;
-                    GrabConvertedBuffer = NULL;
-                    GrabConvertedBufferSz = 0;
-                }
-
                 if ( ( imgWidth > 0 ) && ( imgHeight > 0 ) )
                 {
                     switch( enc_type )
@@ -476,7 +602,7 @@ class SampleGrabberCallback : public ISampleGrabberCB
                         #endif /// of _MSC_VER
                         case DShowCamera::BYPASS:
                             {
-                                GrabConvertedBuffer = new unsigned char[ BufferLen ];
+                                GrabConvertedBuffer = new uint8_t[ BufferLen ];
                                 if ( GrabConvertedBuffer != NULL )
                                 {
                                     memcpy( GrabConvertedBuffer, pBuffer, BufferLen );
@@ -503,6 +629,13 @@ class SampleGrabberCallback : public ISampleGrabberCB
                     }
                 }
 
+                if ( GrabConvertedBuffer != NULL )
+                {
+                    delete[] GrabConvertedBuffer;
+                    GrabConvertedBuffer = NULL;
+                    GrabConvertedBufferSz = 0;
+                }
+
                 buffLock = false;
                 doGrabFrame = false;
 
@@ -516,11 +649,11 @@ class SampleGrabberCallback : public ISampleGrabberCB
         bool        doGrabFrame;
         bool        buffLock;
         BYTE*       GrabConvertedBuffer;
-        unsigned    GrabConvertedBufferSz;
+        uint32_t    GrabConvertedBufferSz;
         BYTE*       UserBuffer;
-        unsigned    UserBufferSz;
-        unsigned    imgWidth;
-        unsigned    imgHeight;
+        uint32_t    UserBufferSz;
+        uint32_t    imgWidth;
+        uint32_t    imgHeight;
         HANDLE      hEventGrab;
 
     private:
@@ -536,26 +669,35 @@ DShowCamera::DShowCamera()
    bConfigured( false ),
    bPolling( false ),
    pSGCB( NULL ),
-   currentcfgidx(-1)
+   currentcfgidx(-1),
+   currentcamidx(-1)
 {
-    _Initialize_DSHOWCOMOBJ();
 }
 
 DShowCamera::~DShowCamera()
 {
     if ( pSGCB != NULL )
     {
-        _SafeRelease( pSGCB );
+        delete pSGCB;
+        pSGCB = NULL;
     }
 
-    _Finalize_DSHOWCOMOBJ();
+    if ( dxdsprop != NULL )
+    {
+        delete dxdsprop;
+        dxdsprop = NULL;
+    }
+
+    if ( camDevInfo.size() > 0 )
+        DeviceInfos().swap( camDevInfo );
 }
 
 void DShowCamera::EnermateDevice( DeviceInfos* retDeviceInfos )
 {
     if ( _COMOBJ_INIT == true )
     {
-        camDevInfo.clear();
+        if ( camDevInfo.size() > 0 )
+            DeviceInfos().swap( camDevInfo );
 
         ICreateDevEnum* pCDevEnum = NULL;
         IEnumMoniker*   pEnumMoniker = NULL;
@@ -575,7 +717,7 @@ void DShowCamera::EnermateDevice( DeviceInfos* retDeviceInfos )
 
             if (pEnumMoniker == NULL)
             {
-                pCDevEnum->Release();
+                _SafeRelease( pCDevEnum );
                 return;
             }
         }
@@ -602,39 +744,36 @@ void DShowCamera::EnermateDevice( DeviceInfos* retDeviceInfos )
 
             if( pPropertyBag != NULL )
             {
-                VARIANT var = {0};
+                VARIANT var;
+                VariantInit(&var);
 
-                // get FriendlyName, Description, DevicePath.
-                var.vt = VT_BSTR;
-
-                pPropertyBag->Read( L"FriendlyName", &var, 0);
-                if ( var.bstrVal != NULL )
+                if ( SUCCEEDED(pPropertyBag->Read( L"FriendlyName", &var, 0 )) &&
+                     var.vt == VT_BSTR && var.bstrVal != NULL )
                 {
                     newCDI.name = var.bstrVal;
-
-                    if ( newCDIavailed == false )
-                        newCDIavailed = true;
+                    newCDIavailed = true;
                 }
+                VariantClear(&var);
 
-                pPropertyBag->Read( L"Description", &var, 0);
-                if ( var.bstrVal != NULL )
+                VariantInit(&var);
+                if ( SUCCEEDED(pPropertyBag->Read( L"Description", &var, 0 )) &&
+                     var.vt == VT_BSTR && var.bstrVal != NULL )
                 {
                     newCDI.description = var.bstrVal;
-
-                    if ( newCDIavailed == false )
-                        newCDIavailed = true;
+                    newCDIavailed = true;
                 }
+                VariantClear(&var);
 
-                pPropertyBag->Read( L"DevicePath", &var, 0);
-                if ( var.bstrVal != NULL )
+                VariantInit(&var);
+                if ( SUCCEEDED(pPropertyBag->Read( L"DevicePath", &var, 0 )) &&
+                     var.vt == VT_BSTR && var.bstrVal != NULL )
                 {
                     newCDI.path = var.bstrVal;
-
-                    if ( newCDIavailed == false )
-                        newCDIavailed = true;
+                    newCDIavailed = true;
                 }
-
                 VariantClear(&var);
+
+                _SafeRelease( pPropertyBag );
             }
 
             if ( newCDIavailed == true )
@@ -642,15 +781,11 @@ void DShowCamera::EnermateDevice( DeviceInfos* retDeviceInfos )
                 camDevInfo.push_back( newCDI );
             }
 
-            // release
             _SafeRelease( pMoniker );
-            _SafeRelease( pPropertyBag );
 
             idx++;
         }
-
-        _SafeRelease( pCDevEnum );
-
+        
         if ( retDeviceInfos != NULL )
         {
             retDeviceInfos->assign( camDevInfo.begin(),
@@ -658,6 +793,7 @@ void DShowCamera::EnermateDevice( DeviceInfos* retDeviceInfos )
         }
 
         _SafeRelease( pEnumMoniker );
+        _SafeRelease( pCDevEnum );
     }
 }
 
@@ -723,7 +859,7 @@ bool DShowCamera::SelectConfig( size_t idx )
 
             int iCount = 0;
             int iSize = 0;
-            size_t realidx = cfgitems[ idx ].realindex;
+            ULONG realidx = cfgitems[ idx ].realindex;
 
             pConfig->GetNumberOfCapabilities( &iCount, &iSize );
 
@@ -741,45 +877,77 @@ bool DShowCamera::SelectConfig( size_t idx )
                         _FreeMediaType( dxdsprop->ConfigAMT );
                     }
 
-                    pConfig->SetFormat( pmtCfg );
+                    hr = pConfig->SetFormat( pmtCfg );
 
-                    _CopyMediaType( &dxdsprop->ConfigAMT, pmtCfg );
-                    _DeleteMediaType( pmtCfg );
-
-                    if ( pSGCB != NULL )
+                    if ( SUCCEEDED(hr) )
                     {
-                        dxdsprop->pSGrabber->SetBufferSamples( FALSE );
-                        dxdsprop->pSGrabber->SetCallback( NULL, 1 );
-
-                        delete pSGCB;
-
-                        pSGCB = new SampleGrabberCallback( cfgitems[idx].encodedtype );
+                        _CopyMediaType( &dxdsprop->ConfigAMT, pmtCfg );
+                        _DeleteMediaType( pmtCfg );
 
                         if ( pSGCB != NULL )
                         {
-                            VIDEOINFOHEADER *pVih = \
-                            (VIDEOINFOHEADER*)dxdsprop->ConfigAMT.pbFormat;
-    
-                            pSGCB->Size( pVih->bmiHeader.biWidth,
-                                         pVih->bmiHeader.biHeight );
+                            dxdsprop->pSGrabber->SetBufferSamples( FALSE );
+                            dxdsprop->pSGrabber->SetCallback( NULL, 1 );
 
-                            dxdsprop->pSGrabber->SetCallback( pSGCB, 1 );
-                            dxdsprop->pSGrabber->SetBufferSamples( TRUE );
+                            pSGCB->SetEncodeType( cfgitems[idx].encodedtype );
+
+                            if ( pSGCB != NULL )
+                            {
+                                VIDEOINFOHEADER *pVih = \
+                                (VIDEOINFOHEADER*)dxdsprop->ConfigAMT.pbFormat;
+        
+                                pSGCB->Size( pVih->bmiHeader.biWidth,
+                                             pVih->bmiHeader.biHeight );
+#ifdef DEBUG
+                                printf( "(debug)Changed format w:h = %llux%llu\n",
+                                        pVih->bmiHeader.biWidth,
+                                        pVih->bmiHeader.biHeight );
+                                fflush( stdout );
+#endif /// of DEBUG
+                                dxdsprop->pSGrabber->SetBufferSamples( TRUE );
+                                dxdsprop->pSGrabber->SetCallback( pSGCB, 1 );
+                            }
                         }
 
+                        currentcfgidx = idx;
+                        dxdsprop->bConfigured = true;
+                        bConfigured = true;
                     }
-
-                    currentcfgidx = idx;
-                    dxdsprop->bConfigured = true;
-                    bConfigured = true;
+                }
+                else
+                {
+                    dxdsprop->bConfigured = false;
+                    bConfigured = false;
                 }
             }
 
             _SafeRelease( pConfig );
+
+            return bConfigured;
         }
     }
 
     return false;
+}
+
+bool DShowCamera::CloseDevice()
+{
+    StopPoll();
+
+    if ( dxdsprop != NULL )
+    {
+        delete dxdsprop;
+        dxdsprop = NULL;
+    }
+
+    bConfigured = false;
+    bPolling = false;
+    currentcfgidx = -1;
+    currentcamidx = -1;
+    cfgitems.clear();
+    resetDeviceSettings();
+
+    return true;
 }
 
 bool DShowCamera::GetSetting( SETTING_TYPE settype, CameraSettingItem &item )
@@ -793,7 +961,7 @@ bool DShowCamera::GetSetting( SETTING_TYPE settype, CameraSettingItem &item )
     return false;
 }
 
-bool DShowCamera::ApplyManualSetting( SETTING_TYPE settype, long newVal )
+bool DShowCamera::ApplyManualSetting( SETTING_TYPE settype, uint32_t newVal )
 {
     if (settype >= SETTING_TYPE_MAX )
         return false;
@@ -1157,8 +1325,6 @@ bool DShowCamera::ApplyAutoSetting( SETTING_TYPE settype )
 
             if ( ( settype == EXPOSURE ) || ( settype == FOCUS ) )
             {
-                HRESULT hr = S_FALSE;
-
                 hr = pDF->QueryInterface( IID_IAMCameraControl, (LPVOID*)&pCamCtrl );
             }
             else
@@ -1170,6 +1336,13 @@ bool DShowCamera::ApplyAutoSetting( SETTING_TYPE settype )
 
     if ( ( pCamCtrl == NULL ) && ( pProcAmp == NULL ) )
         return false;
+
+    if ( hr == S_FALSE )
+    {
+        _SafeRelease( pProcAmp );
+        _SafeRelease( pCamCtrl );
+        return false;
+    }
 
     bool retb = false;
 
@@ -1427,17 +1600,43 @@ bool DShowCamera::StartPoll()
         if ( dxdsprop->pControl != NULL )
         {
             OAFilterState cstate = 0;
+            unsigned retrying = 0;
 
-            dxdsprop->pControl->GetState( 100, &cstate );
+            // test for running state ..
+            dxdsprop->pControl->GetState( DSHOWCAMTK_DEFAULT_TIMEOUT, &cstate );
+            if ( cstate == State_Running )
+                return true;
 
-            if ( cstate != State_Running )
+            if ( dxdsprop->pSourceFilter != NULL )
             {
-                dxdsprop->pControl->Run();
-
-                bPolling = true;
+                dxdsprop->pSourceFilter->Run( 0 );
             }
 
-            return true;
+            while( retrying < 100 )
+            {
+                if ( dxdsprop->pControl->Run() == S_OK )
+                    break;
+
+                retrying++;
+            }
+
+            retrying = 0;
+
+            // Let try 100 times !
+            while( retrying < 100 )
+            {
+                dxdsprop->pControl->GetState( DSHOWCAMTK_DEFAULT_TIMEOUT, &cstate );
+
+                if ( cstate == State_Running )
+                {
+                    bPolling = true;
+                    break;
+                }
+
+                retrying ++;
+            }
+
+            return bPolling;
         }
     }
 
@@ -1457,7 +1656,7 @@ bool DShowCamera::StopPoll()
         {
             OAFilterState cstate = 0;
 
-            dxdsprop->pControl->GetState( 100, &cstate );
+            dxdsprop->pControl->GetState( DSHOWCAMTK_DEFAULT_TIMEOUT, &cstate );
 
             if ( cstate != State_Stopped )
             {
@@ -1494,7 +1693,7 @@ bool DShowCamera::SetGrabRaw( bool onoff )
     return false;
 }
 
-bool DShowCamera::GrabAFrame( unsigned char* &buff, unsigned &bufflen )
+bool DShowCamera::GrabAFrame( uint8_t* &buff, size_t &bufflen )
 {
     if ( dxdsprop != NULL )
     {
@@ -1502,16 +1701,23 @@ bool DShowCamera::GrabAFrame( unsigned char* &buff, unsigned &bufflen )
         {
             OAFilterState cstate = 0;
 
-            dxdsprop->pControl->GetState( 100, &cstate );
+            dxdsprop->pControl->GetState( DSHOWCAMTK_DEFAULT_TIMEOUT, &cstate );
 
             if ( cstate == State_Running )
             {
                 pSGCB->Grab();
-                BYTE* tmpbuff = NULL;
                 bufflen = pSGCB->GetBuffer( buff );
-
+                
                 return true;
             }
+#ifdef DEBUG
+            else
+            {
+                printf( "cstate is not State_Running ? (%u:%u)\n",
+                        (unsigned)cstate,
+                        (unsigned)State_Running );
+            }
+#endif /// of DEBUG
         }
     }
 
@@ -1521,7 +1727,7 @@ bool DShowCamera::GrabAFrame( unsigned char* &buff, unsigned &bufflen )
     return false;
 }
 
-bool DShowCamera::GrabTriggered( unsigned char* &buff, unsigned &bufflen )
+bool DShowCamera::GrabTriggered( uint8_t* &buff, size_t &bufflen )
 {
     if ( dxdsprop != NULL )
     {
@@ -1616,12 +1822,18 @@ bool DShowCamera::initDevice( size_t idx )
     {
         bool retb = false;
 
+        if ( camDevInfo.size() == 0 )
+        {
+            EnermateDevice( NULL );
+        }
+
         if ( camDevInfo.size() > 0 )
         {
             retb = connectDevice( idx );
 
             if ( retb == true )
             {
+                currentcamidx = idx;
                 enumerateConfigs();
                 retb = configureDevice();
             }
@@ -1693,9 +1905,12 @@ bool DShowCamera::connectDevice( size_t idx )
 
                 if ( dxdsprop->pVideoControl == NULL )
                 {
-                    printf("#WARNING: Failed to get Video control ...\n" );
+                    fprintf( stderr, 
+                             "#WARNING: Failed to get Video control ...\n" );
                 }
             }
+
+            _SafeRelease( pMoniker );
         }
 
         _SafeRelease( pEnumMoniker );
@@ -1715,6 +1930,8 @@ bool DShowCamera::configureDevice()
         {
             if ( dxdsprop->pGraph == NULL )
             {
+                // CLSID_FilterGraph or ...
+                // CLSID_FilterGraphNoThread
                 CoCreateInstance( CLSID_FilterGraphNoThread,
                                   NULL,
                                   CLSCTX_INPROC_SERVER,
@@ -1723,9 +1940,14 @@ bool DShowCamera::configureDevice()
 
             if ( dxdsprop->pGraph != NULL )
             {
+                wchar_t tmpfn[40] = {0};
+                
                 // Find Event Trigger.
-                dxdsprop->pGraph->QueryInterface( IID_IMediaEvent,
-                                                  (LPVOID*)&dxdsprop->pEventTrigger );
+                if ( dxdsprop->pEventTrigger == NULL )
+                {
+                    dxdsprop->pGraph->QueryInterface( IID_IMediaEvent,
+                                                      (LPVOID*)&dxdsprop->pEventTrigger );
+                }
 
                 if ( dxdsprop->pControl == NULL )
                 {
@@ -1733,8 +1955,8 @@ bool DShowCamera::configureDevice()
                     pGraph->QueryInterface( IID_PPV_ARGS(&dxdsprop->pControl) );
                 }
 
-                dxdsprop->pGraph->AddFilter( dxdsprop->pCameraFilter,
-                                                L"Capture Source" );
+                snwprintf( tmpfn, 40, L"Capture Source %u", currentcamidx );
+                dxdsprop->pGraph->AddFilter( dxdsprop->pCameraFilter, tmpfn );
 
                 if ( dxdsprop->pGrabberFilter == NULL )
                 {
@@ -1746,15 +1968,16 @@ bool DShowCamera::configureDevice()
 
                 if ( dxdsprop->pGrabberFilter != NULL )
                 {
-                    dxdsprop->pGraph->AddFilter( dxdsprop->pGrabberFilter,
-                                                    L"Sample Grabber" );
+                    snwprintf( tmpfn, 40, L"Sample Grabber %u", currentcamidx );
+                    dxdsprop->pGraph->AddFilter( dxdsprop->pGrabberFilter, \
+                                                 tmpfn );
 
                     if ( dxdsprop->pSGrabber == NULL )
                     {
                         dxdsprop->\
                         pGrabberFilter->\
-                        QueryInterface( IID_ISampleGrabber, (LPVOID*)&dxdsprop->pSGrabber );
-                        //QueryInterface( IID_PPV_ARGS(&dxdsprop->pSGrabber) );
+                        QueryInterface( IID_ISampleGrabber, 
+                                        (LPVOID*)&dxdsprop->pSGrabber );
                     }
                 }
 
@@ -1766,10 +1989,15 @@ bool DShowCamera::configureDevice()
                                       IID_ICaptureGraphBuilder2,
                                       (LPVOID *)&dxdsprop->pCGB );
                 }
+                
+                if ( dxdsprop->pCGB != NULL )
+                {
+                     dxdsprop->pCGB->SetFiltergraph( dxdsprop->pGraph );
+                }
 
                 IEnumPins* pEnum = NULL;
 
-                if ( dxdsprop->pCameraFilter->EnumPins( &pEnum) == S_OK )
+                if ( dxdsprop->pCameraFilter->EnumPins( &pEnum ) == S_OK )
                 {
                     IPin* pPin = NULL;
 
@@ -1786,6 +2014,8 @@ bool DShowCamera::configureDevice()
                             break;
                         }
                     }
+
+                    _SafeRelease(pEnum);
                 }
 
                 if ( dxdsprop->pNullFilter == NULL )
@@ -1798,17 +2028,14 @@ bool DShowCamera::configureDevice()
 
                 if ( dxdsprop->pNullFilter != NULL )
                 {
-                    dxdsprop->pGraph->AddFilter( dxdsprop->pNullFilter,
-                                                    L"NULL Renderer Filter" );
+                    snwprintf( tmpfn, 40, L"NULL Renderer Filter %u", \
+                               currentcamidx );
+                    
+                    dxdsprop->pGraph->AddFilter( dxdsprop->pNullFilter, tmpfn );
                     ConnectFilters( dxdsprop->pGraph,
                                     dxdsprop->pGrabberFilter,
                                     dxdsprop->pNullFilter );
                 }
-
-                // Find Event Trigger.
-                dxdsprop->pGraph->QueryInterface( IID_IMediaEvent,
-                                                  (LPVOID*)&dxdsprop->pEventTrigger );
-
             }
 
             if ( dxdsprop->pSGrabber != NULL )
@@ -1818,9 +2045,9 @@ bool DShowCamera::configureDevice()
                     pSGCB = new SampleGrabberCallback( cfgitems[0].encodedtype );
                 }
 
-                dxdsprop->pSGrabber->SetOneShot( FALSE );
-                dxdsprop->pSGrabber->SetCallback( pSGCB, 1 );
+                dxdsprop->pSGrabber->SetOneShot( TRUE );
                 dxdsprop->pSGrabber->SetBufferSamples( TRUE );
+                dxdsprop->pSGrabber->SetCallback( pSGCB, 1 );
             }
 
             readDeviceSettings();
@@ -2095,11 +2322,11 @@ void DShowCamera::enumerateConfigs()
                                 else
                                     if (pmtCfg->subtype == MEDIASUBTYPE_RGB565)
                                         newcfgitem.encodedtype = DShowCamera::RGB565;
-                            #ifndef _MSC_VER
+#ifndef _MSC_VER
                                 else
                                     if (pmtCfg->subtype == MEDIASUBTYPE_MJPG)
                                         newcfgitem.encodedtype = DShowCamera::MJPEG;
-                            #endif /// of _MSC_VER
+#endif /// of _MSC_VER
                                 
                                 newcfgitem.width  = pVih->bmiHeader.biWidth;
                                 newcfgitem.height = pVih->bmiHeader.biHeight;
@@ -2117,4 +2344,15 @@ void DShowCamera::enumerateConfigs()
             _SafeRelease( pConfig );
         }
     }
+}
+
+
+void DShowCamera::InitInstance()
+{
+    _Initialize_DSHOWCOMOBJ();
+}
+
+void DShowCamera::ReleaseInstance()
+{
+    _Finalize_DSHOWCOMOBJ();    
 }

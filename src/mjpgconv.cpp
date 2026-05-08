@@ -2,6 +2,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <cstdint>
 
 #include "mjpgconv.h"
 
@@ -27,22 +28,22 @@ static void _error_exit(j_common_ptr dinfo)
 /* ISO/IEC 10918-1:1993(E) K.3.3. Default Huffman tables used by MJPEG UVC devices
    which don't specify a Huffman table in the JPEG stream. */
 
-static const unsigned char dc_lumi_len[] = \
+static const uint8_t dc_lumi_len[] = \
     {0, 0, 1, 5, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0};
 
-static const unsigned char dc_lumi_val[] = \
+static const uint8_t dc_lumi_val[] = \
     {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
 
-static const unsigned char dc_chromi_len[] = \
+static const uint8_t dc_chromi_len[] = \
     {0, 0, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0};
 
-static const unsigned char dc_chromi_val[] = \
+static const uint8_t dc_chromi_val[] = \
     {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
 
-static const unsigned char ac_lumi_len[] = \
+static const uint8_t ac_lumi_len[] = \
     {0, 0, 2, 1, 3, 3, 2, 4, 3, 5, 5, 4, 4, 0, 0, 1, 0x7d};
 
-static const unsigned char ac_lumi_val[] = \
+static const uint8_t ac_lumi_val[] = \
     {0x01, 0x02, 0x03, 0x00, 0x04, 0x11, 0x05, 0x12, 0x21,
      0x31, 0x41, 0x06, 0x13, 0x51, 0x61, 0x07, 0x22, 0x71,
      0x14, 0x32, 0x81, 0x91, 0xa1, 0x08, 0x23, 0x42, 0xb1,
@@ -62,10 +63,10 @@ static const unsigned char ac_lumi_val[] = \
      0xe3, 0xe4, 0xe5, 0xe6, 0xe7, 0xe8, 0xe9, 0xea, 0xf1,
      0xf2, 0xf3, 0xf4, 0xf5, 0xf6, 0xf7, 0xf8, 0xf9, 0xfa};
 
-static const unsigned char ac_chromi_len[] = \
+static const uint8_t ac_chromi_len[] = \
     {0, 0, 2, 1, 2, 4, 4, 3, 4, 7, 5, 4, 4, 0, 1, 2, 0x77};
 
-static const unsigned char ac_chromi_val[] = \
+static const uint8_t ac_chromi_val[] = \
     {0x00, 0x01, 0x02, 0x03, 0x11, 0x04, 0x05, 0x21, 0x31,
      0x06, 0x12, 0x41, 0x51, 0x07, 0x61, 0x71, 0x13, 0x22,
      0x32, 0x81, 0x08, 0x14, 0x42, 0x91, 0xa1, 0xb1, 0xc1,
@@ -147,24 +148,26 @@ static void jpeg_mem_src (j_decompress_ptr cinfo, void* buffer, long nbytes)
     src->next_input_byte = (JOCTET*)buffer;
 }
 
-unsigned mjpeg2rgb(void* in, unsigned sz, void** out,unsigned width, unsigned height )
+bool mjpeg2rgb( void* in, size_t sz, void** out, uint32_t width, uint32_t height )
 {
     struct jpeg_decompress_struct dinfo;
     struct error_mgr jerr;
     size_t lines_read;
 
-    unsigned char* prgb = new unsigned char[ ( width * height ) * 3 ];
-    unsigned char* prgb_que = prgb;
-    unsigned char* prgb_end = prgb + ( ( width * height ) * 3 );
+    uint8_t* prgb = new uint8_t[ ( width * height ) * 3 ];
+    uint8_t* prgb_que = prgb;
+    uint8_t* prgb_end = prgb + ( ( width * height ) * 3 );
 
     if ( prgb == NULL )
-        return 0;
+        return false;
 
     dinfo.err = jpeg_std_error(&jerr.super);
     jerr.super.error_exit = _error_exit;
 
     if (setjmp(jerr.jmp))
     {
+        // Gemini recommended to delete this, :)
+        delete[] prgb;
         jpeg_destroy_decompress(&dinfo);
         return false;
     }
@@ -186,11 +189,11 @@ unsigned mjpeg2rgb(void* in, unsigned sz, void** out,unsigned width, unsigned he
 
     lines_read = 0;
 
-    unsigned out_step = width * 3;
+    size_t out_step = width * 3;
 
     while (dinfo.output_scanline < dinfo.output_height)
     {
-        unsigned char *buffer[1] = {( unsigned char*)prgb + lines_read * out_step };
+        uint8_t *buffer[1] = {( uint8_t*)prgb + lines_read * out_step };
         int num_scanlines;
 
         num_scanlines = jpeg_read_scanlines(&dinfo, buffer, 1);
