@@ -30,7 +30,7 @@ DEFS  = -DUNICODE
 # Compiler optiops 
 COPTS += -mms-bitfields -mwindows
 # -- for debug -- COPTS += -g3
-COPTS += -DDEBUG_MEM -g3
+# -- for debugging memory -- COPTS += -DDEBUG_MEM -g3
 
 # CC FLAG
 CFLAGS  = -I$(SRC_PATH)

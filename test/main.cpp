@@ -42,6 +42,14 @@ void capture( DShowCamera*& p, size_t idx )
 
     if ( p != nullptr )
     {
+        DShowCamera::DeviceInfos dl;
+
+        p->EnermateDevice( &dl );
+
+        printf( "--> Selected camera: %S [%S]\n",
+                dl[idx].name.c_str(),
+                dl[idx].path.c_str() );
+ 
         if ( p->SelectDevice( idx ) == false )
         {
             printf( "Error: Cannot select device %zu.\n", idx );
@@ -87,7 +95,7 @@ void capture( DShowCamera*& p, size_t idx )
 
 int main( int argc, char** argv )
 {
-    // DShowCamera::InitInstance();
+    DShowCamera::InitInstance();
 
     DShowCamera* dsc = nullptr;
     size_t       idx = 0;

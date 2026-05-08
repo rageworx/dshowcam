@@ -32,9 +32,9 @@ class DShowCamera
             YUVY,
             RGB555,
             RGB565,
-        #ifndef _MSC_VER
+#ifndef _MSC_VER
             MJPEG,
-        #endif
+#endif
             BYPASS,
             ENCODE_TYPE_MAX
         }ENCODE_TYPE;
@@ -93,6 +93,10 @@ class DShowCamera
         typedef std::vector< CameraConfigItem > ConfigItems;
         typedef std::vector< uint32_t >         DeviceFreqs;
 
+    public:
+        static void InitInstance();
+        static void ReleaseInstance();
+        
     public:
         DShowCamera();
         virtual ~DShowCamera();

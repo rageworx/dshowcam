@@ -22,26 +22,6 @@ using namespace dshowcamtk;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Y8 GUID : 20203859-0000-0010-8000-00AA00389B71
-#ifndef MEDIASUBTYPE_Y8
-DEFINE_GUID(MEDIASUBTYPE_Y8,0x20203859,0x0000,0x0010,\
-            0x80,0x00,0x000,0xAA,0x00,0x38,0x9B,0x71);
-#endif // MEDIASUBTYPE_Y8
-
-#ifndef _MSC_VER
-// CLSID_SampleGrabber GUID defines in variable env, 
-// So I decide as new one.
-#ifndef CLSID_SampleGrabberEx
-DEFINE_GUID(CLSID_SampleGrabberEx,0xc1f400a0,0x3f08,0x11d3,\
-            0x9f,0x0b,0x00,0x60,0x08,0x03,0x9e,0x37);
-#endif // CLSID_SampleGrabber
-
-#ifndef CLSID_NullRenderer
-DEFINE_GUID(CLSID_NullRenderer,0xc1f400a4,0x3f08,0x11d3,\
-            0x9f,0x0b,0x00,0x60,0x08,0x03,0x9e,0x37);
-#endif // CLSID_NullRenderer
-#endif /// of _MSC_VER
-
 #define DSHOWCAMTK_DEFAULT_TIMEOUT      ( 1000 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -92,189 +72,7 @@ static void _Finalize_DSHOWCOMOBJ()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-const char* GUID2str(GUID guid)
-{
-    static char retstr[128] = {0};
-
-    snprintf( retstr, 128,
-              "{%08lX-%04hX-%04hX-%02hhX%02hhX-"
-              "%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX}",
-              guid.Data1,
-              guid.Data2,
-              guid.Data3,
-              guid.Data4[0],
-              guid.Data4[1],
-              guid.Data4[2],
-              guid.Data4[3],
-              guid.Data4[4],
-              guid.Data4[5],
-              guid.Data4[6],
-              guid.Data4[7] );
-
-    return retstr;
-}
-
-void PrintMediaType( int idx, AM_MEDIA_TYPE *pmt)
-{
-    if ( pmt != NULL )
-    {
-        if ( pmt->majortype == MEDIATYPE_Video )
-        {
-            VIDEOINFOHEADER *pVih = (VIDEOINFOHEADER*)pmt->pbFormat;
-
-            RECT rectsrc = pVih->rcSource;
-            DWORD bitrate = pVih->dwBitRate;
-
-            LONG width = pVih->bmiHeader.biWidth;
-            LONG height = pVih->bmiHeader.biHeight;
-            WORD bpp    = pVih->bmiHeader.biBitCount;
-
-            const char* strSub   = "none";
-
-            if ( pmt->subtype == MEDIASUBTYPE_YUYV )
-                strSub = "YUYV";
-            else
-            if ( pmt->subtype == MEDIASUBTYPE_IYUV )
-                strSub = "IYUV";
-            else
-            if ( pmt->subtype == MEDIASUBTYPE_YUY2 )
-                strSub = "YUY2";
-            else
-            if ( pmt->subtype == MEDIASUBTYPE_YVYU )
-                strSub = "YVYU";
-            else
-            if ( pmt->subtype == MEDIASUBTYPE_MJPG )
-                strSub = "MJPG";
-            else
-            if ( pmt->subtype == MEDIASUBTYPE_RGB565 )
-                strSub = "RGB565";
-            else
-            if ( pmt->subtype == MEDIASUBTYPE_RGB555 )
-                strSub = "RGB555";
-            else
-            if ( pmt->subtype == MEDIASUBTYPE_RGB24 )
-                strSub = "RGB24";
-            else
-            if ( pmt->subtype == MEDIASUBTYPE_Y8 )
-                strSub = "Y8";
-            else
-                strSub = GUID2str( pmt->subtype );
-
-            printf( "[%03d] Media sub type : %s, WxHxBPP = %dx%dx%u\n",
-                    idx,
-                    strSub,
-                    width,
-                    height,
-                    bpp );
-        }
-        else
-        {
-            fprintf( stderr,
-                     "Error: media major type is not video ! (%d)\n",
-                     pmt->majortype );
-        }
-    }
-}
-
-// A short tool to disconnect all PINs from IGraphBuider!
-static void DisconnectAllPins(IGraphBuilder* pGraph)
-{
-    if ( pGraph == NULL ) 
-    {
-        return;
-    }
-
-    IEnumFilters* pFilterEnum = NULL;
-    
-    if (FAILED(pGraph->EnumFilters(&pFilterEnum)))
-    {
-        return;
-    }
-
-    IBaseFilter* pFilter = NULL;
-
-    while ( pFilterEnum->Next( 1, &pFilter, NULL ) == S_OK )
-    {
-        IEnumPins* pPinEnum = NULL;
-
-        if ( SUCCEEDED( pFilter->EnumPins( &pPinEnum ) ) )
-        {
-            IPin* pPin = NULL;
-
-            while ( pPinEnum->Next(1, &pPin, nullptr) == S_OK )
-            {
-                IPin* pConnectedPin = NULL;
-
-                if ( SUCCEEDED( pPin->ConnectedTo( &pConnectedPin ) ) )
-                {
-                    pGraph->Disconnect( pPin );
-                    pGraph->Disconnect( pConnectedPin );
-                    _SafeRelease( pConnectedPin );
-                }
-                _SafeRelease( pPin );
-            }
-            _SafeRelease( pPinEnum );
-        }
-        _SafeRelease( pFilter );
-    }
-    _SafeRelease( pFilterEnum );
-}
-
-static void DisconnectAllPinsEx(ICaptureGraphBuilder2* pGrp2)
-{
-    if ( pGrp2 == NULL )
-    {
-        return;
-    }
-
-    IGraphBuilder* pGraph = NULL;
-
-    if ( FAILED( pGrp2->GetFiltergraph( &pGraph ) ) )
-    {
-        return;
-    }
-
-    IEnumFilters* pFilterEnum = NULL;
-
-    if ( SUCCEEDED( pGraph->EnumFilters( &pFilterEnum ) ) )
-    {
-        IBaseFilter* pFilter = NULL;
-
-        while ( pFilterEnum->Next( 1, &pFilter, NULL ) == S_OK )
-        {
-            IEnumPins* pPinEnum = NULL;
-
-            if ( SUCCEEDED( pFilter->EnumPins( &pPinEnum ) ) )
-            {
-                IPin* pPin = NULL;
-
-                while ( pPinEnum->Next( 1, &pPin, NULL ) == S_OK )
-                {
-                    IPin* pConnectedPin = NULL;
-
-                    if ( SUCCEEDED( pPin->ConnectedTo( &pConnectedPin ) ) )
-                    {
-                        pGraph->Disconnect( pPin );
-                        pGraph->Disconnect( pConnectedPin );
-                        _SafeRelease( pConnectedPin );
-                    }
-                    _SafeRelease( pPin );
-                }
-                _SafeRelease( pPinEnum );
-            }
-            _SafeRelease( pFilter );
-        }
-        _SafeRelease( pFilterEnum );
-    }
-    _SafeRelease( pGraph );
-}
-
-
 ////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class DxDShowProperties
@@ -290,6 +88,7 @@ class DxDShowProperties
            pSourceFilter( NULL ),
            pNullFilter( NULL ),
            pEventTrigger( NULL ),
+           pVideoControl( NULL ),
            bConfigured( false )
         {
             // Initialized.
@@ -301,24 +100,38 @@ class DxDShowProperties
         {
             finalizeControl();
 
-            _SafeRelease(pVideoControl);
+            // finalizeControl() detaches callback, stops the graph, drains
+            // IMediaEvent, and removes the filters from the graph.  At this
+            // point only release our interface references.  Release secondary
+            // interfaces before their owning filter interfaces so DEBUG_MEM
+            // ref-count logs are easier to interpret.
             _SafeRelease(pEventTrigger);
-            _SafeRelease(pCameraFilter);
+            _SafeRelease(pControl);
+            _SafeRelease(pVideoControl);
+            // _SafeRelease(pSGrabber);
+
+            // Release the owning filter before the interface obtained from it.
+            // With the SampleGrabber filter, IBaseFilter can still hold the last
+            // internal reference to the ISampleGrabber interface; releasing the
+            // filter first gives pSGrabber a chance to reach refcount 0 in the
+            // DEBUG_MEM log instead of staying at 1 until the filter dies.            
             _SafeRelease(pNullFilter);
             _SafeRelease(pSourceFilter);
-            _SafeRelease(pSGrabber);
             _SafeRelease(pGrabberFilter);
-            _SafeRelease(pControl);
-            _ForceRelease(pCGB);
-            _ForceRelease(pGraph);
+            _SafeRelease(pCameraFilter);
+            
+            _SafeRelease(pSGrabber);
+            
+            _SafeRelease(pCGB);
+            _SafeRelease(pGraph);
         }
 
     public:
         IGraphBuilder*          pGraph;
         ICaptureGraphBuilder2*  pCGB;
         IMediaControl*          pControl;
-        IBaseFilter*            pGrabberFilter;
         ISampleGrabber*         pSGrabber;
+        IBaseFilter*            pGrabberFilter;
         IBaseFilter*            pSourceFilter;
         IBaseFilter*            pCameraFilter;
         IBaseFilter*            pNullFilter;
@@ -328,46 +141,115 @@ class DxDShowProperties
         AM_MEDIA_TYPE           ConfigAMT;
         bool                    bConfigured;
 
-    protected:
-        void finalizeControl()
+    protected:        
+        void stopFilter(IBaseFilter* pf)
         {
-            if ( pControl != NULL )
+            if ( pf != NULL )
+            {
+                pf->Stop();
+            }
+        }
+        
+        void removeFilter(IBaseFilter* pf)
+        {
+            if ( pf != NULL && pGraph != NULL )
+            {
+                pGraph->RemoveFilter( pf );
+            }
+        }
+        
+        void drainGraphEvents()
+        {
+            if ( pEventTrigger == NULL )
+                return;
+
+            long evCode = 0;
+            LONG_PTR param1 = 0;
+            LONG_PTR param2 = 0;
+
+            // Drain pending EC_* events generated by Stop()/renderer shutdown.
+            // This avoids releasing the graph while quartz/ksproxy worker threads
+            // still have teardown notifications queued.
+            while ( pEventTrigger->GetEvent( &evCode, &param1, &param2, 0 ) == S_OK )
             {
                 OAFilterState cstate = 0;
+                pEventTrigger->FreeEventParams( evCode, param1, param2 );
+            }
+        }
+        
+        void waitUntilStopped()
+        {
+            if ( pControl == NULL )
+                return;
 
-                pControl->GetState( DSHOWCAMTK_DEFAULT_TIMEOUT, &cstate );
+            HRESULT hr = S_FALSE;
+            OAFilterState cstate = State_Running;
+ 
+            // Some camera drivers/ksproxy need a real stopped graph before
+            // filters are removed.  Stop once, then wait/poll for Stopped.
+            hr = pControl->Stop();
 
-                if ( cstate != State_Stopped )
-                {
-                    // Here comes to deadlock ....
-                    pControl->Stop();
-                }
+            // Some UVC/ksproxy stacks return before all streaming/worker threads
+            // have actually quiesced.  Poll briefly instead of releasing graph
+            // objects immediately after Stop().
+            for ( size_t i = 0; i<20; i++ )
+            {
+                hr = pControl->GetState( 100, &cstate );
+                if ( ( hr == S_OK ) && ( cstate == State_Stopped ) )
+                    break;
 
-                _SafeRelease( pControl );
+                Sleep( 10 );
             }
 
-            if ( pSourceFilter != NULL )
-            {
-                pSourceFilter->Stop();
-            }
+            // Give ksproxy one more scheduling slice to finish cancelled IOCTLs.
+            Sleep( 100 );
+            drainGraphEvents();
+        }        
+       
+        void finalizeControl()
+        {
+            waitUntilStopped();
 
-            if ( pSGrabber != NULL )
+            if( pSGrabber != NULL )
             {
-                pSGrabber->SetBufferSamples(FALSE);
-                pSGrabber->SetOneShot(FALSE);
+                // Detach the client callback before tearing down the graph so
+                // SampleCB cannot run while filters/pins are being released.                
+                pSGrabber->SetCallback( NULL, 0 );
                 pSGrabber->SetCallback( NULL, 1 );
+                pSGrabber->SetBufferSamples( FALSE );
+                pSGrabber->SetOneShot( FALSE );
             }
 
-            if ( pCGB != NULL )
-            {
-                DisconnectAllPinsEx( pCGB );
-            }
+            drainGraphEvents();
 
-            if ( pGraph != NULL )
-            {
-                DisconnectAllPins( pGraph );
-            }
+            // filters are removed/released.  Do not enumerate or disconnect pins
+            // here: several ksproxy/UVC drivers crash while answering pin factory
+            // queries during teardown.
+            _SafeRelease(pVideoControl);
 
+            stopFilter( pNullFilter );            
+            stopFilter( pSourceFilter );
+            stopFilter( pGrabberFilter );            
+            stopFilter( pCameraFilter );
+ 
+            // Remove downstream filters first so IGraphBuilder::~Graph does not
+            // have to tear down the capture graph by itself while ksproxy is still
+            // cancelling streaming IO.  Ignore RemoveFilter() failures; all COM
+            // interfaces are still released below.
+            removeFilter( pNullFilter );
+            removeFilter( pSourceFilter );
+            removeFilter( pGrabberFilter );
+            removeFilter( pCameraFilter );
+
+            drainGraphEvents();
+ 
+            _SafeRelease(pEventTrigger);
+            _SafeRelease(pControl);
+
+            // Do not try to remove the same filters a second time here.
+            // Some ksproxy/UVC stacks are fragile during teardown; repeated
+            // RemoveFilter()/pin capability queries can re-enter the same
+            // driver path that produced KsGetMultiplePinFactoryItems warnings.
             _FreeMediaType( ConfigAMT );
         }
 };
@@ -392,20 +274,20 @@ class SampleGrabberCallback : public ISampleGrabberCB
             snwprintf( tmpEventNm, 64, L"FrameGrabEvent%p", this );
             hEventGrab = CreateEvent( NULL, FALSE, FALSE, tmpEventNm );
 
-#ifdef DEBUG
             if ( enc_type >= DShowCamera::ENCODE_TYPE_MAX )
             {
+#ifdef DEBUG
                 fprintf( stderr,
                          "Error : Encode type out of range (%u) ?!\n",
                          enc_type );
-            }
 #endif /// of DEBUG
+                enc_type = DShowCamera::UNSUPPORTED;
+            }
         }
 
         ~SampleGrabberCallback()
         {
-            Release();
-
+            // Release();
             CloseHandle( hEventGrab );
 
             if ( doGrabFrame == true )
@@ -430,6 +312,21 @@ class SampleGrabberCallback : public ISampleGrabberCB
         }
 
     public:
+        void SetEncodeType(DShowCamera::ENCODE_TYPE et)
+        {
+            enc_type = et;
+            
+            if ( enc_type >= DShowCamera::ENCODE_TYPE_MAX )
+            {
+#ifdef DEBUG
+                fprintf( stderr,
+                         "Error : Encode type out of range (%u) ?!\n",
+                         enc_type );
+#endif /// of DEBUG
+                enc_type = DShowCamera::UNSUPPORTED;
+            }            
+        }
+    
         void Size( unsigned w, unsigned h )
         {
             imgWidth = w;
@@ -511,21 +408,20 @@ class SampleGrabberCallback : public ISampleGrabberCB
         STDMETHODIMP_(ULONG) Release() { return 2; }
         STDMETHODIMP QueryInterface(REFIID riid, void **ppvObject)
         {
-            if (NULL == ppvObject)
+            if ( ppvObject == NULL ) 
                 return E_POINTER;
+            
+            *ppvObject = NULL;
 
-            if (riid == __uuidof(IUnknown))
-            {
+            if ( riid == IID_IUnknown )
                 *ppvObject = static_cast<IUnknown*>(this);
-                 return S_OK;
-            }
-
-            if (riid == CLSID_SampleGrabberEx)
-            {
+            else 
+            if ( riid == IID_ISampleGrabberCB )
                 *ppvObject = static_cast<ISampleGrabberCB*>(this);
-                 return S_OK;
-            }
+            else
+                return E_NOINTERFACE;
 
+            AddRef();
             return S_OK;
         }
 
@@ -776,14 +672,14 @@ DShowCamera::DShowCamera()
    currentcfgidx(-1),
    currentcamidx(-1)
 {
-    _Initialize_DSHOWCOMOBJ();
 }
 
 DShowCamera::~DShowCamera()
 {
     if ( pSGCB != NULL )
     {
-        _SafeRelease( pSGCB );
+        delete pSGCB;
+        pSGCB = NULL;
     }
 
     if ( dxdsprop != NULL )
@@ -792,14 +688,16 @@ DShowCamera::~DShowCamera()
         dxdsprop = NULL;
     }
 
-    _Finalize_DSHOWCOMOBJ();
+    if ( camDevInfo.size() > 0 )
+        DeviceInfos().swap( camDevInfo );
 }
 
 void DShowCamera::EnermateDevice( DeviceInfos* retDeviceInfos )
 {
     if ( _COMOBJ_INIT == true )
     {
-        camDevInfo.clear();
+        if ( camDevInfo.size() > 0 )
+            DeviceInfos().swap( camDevInfo );
 
         ICreateDevEnum* pCDevEnum = NULL;
         IEnumMoniker*   pEnumMoniker = NULL;
@@ -820,7 +718,6 @@ void DShowCamera::EnermateDevice( DeviceInfos* retDeviceInfos )
             if (pEnumMoniker == NULL)
             {
                 _SafeRelease( pCDevEnum );
-                _SafeRelease( pEnumMoniker );
                 return;
             }
         }
@@ -847,45 +744,36 @@ void DShowCamera::EnermateDevice( DeviceInfos* retDeviceInfos )
 
             if( pPropertyBag != NULL )
             {
-                VARIANT var = {0};
+                VARIANT var;
+                VariantInit(&var);
 
-                // get FriendlyName, Description, DevicePath.
-                var.vt = VT_BSTR;
-
-                pPropertyBag->Read( L"FriendlyName", &var, 0);
-                if ( var.bstrVal != NULL )
+                if ( SUCCEEDED(pPropertyBag->Read( L"FriendlyName", &var, 0 )) &&
+                     var.vt == VT_BSTR && var.bstrVal != NULL )
                 {
                     newCDI.name = var.bstrVal;
-
-                    if ( newCDIavailed == false )
-                        newCDIavailed = true;
-
-                    VariantClear(&var);
+                    newCDIavailed = true;
                 }
+                VariantClear(&var);
 
-                pPropertyBag->Read( L"Description", &var, 0);
-                if ( var.bstrVal != NULL )
+                VariantInit(&var);
+                if ( SUCCEEDED(pPropertyBag->Read( L"Description", &var, 0 )) &&
+                     var.vt == VT_BSTR && var.bstrVal != NULL )
                 {
                     newCDI.description = var.bstrVal;
-
-                    if ( newCDIavailed == false )
-                        newCDIavailed = true;
-
-                    VariantClear(&var);
+                    newCDIavailed = true;
                 }
+                VariantClear(&var);
 
-                pPropertyBag->Read( L"DevicePath", &var, 0);
-                if ( var.bstrVal != NULL )
+                VariantInit(&var);
+                if ( SUCCEEDED(pPropertyBag->Read( L"DevicePath", &var, 0 )) &&
+                     var.vt == VT_BSTR && var.bstrVal != NULL )
                 {
                     newCDI.path = var.bstrVal;
-
-                    if ( newCDIavailed == false )
-                        newCDIavailed = true;
-
-                    VariantClear(&var);
+                    newCDIavailed = true;
                 }
-
                 VariantClear(&var);
+
+                _SafeRelease( pPropertyBag );
             }
 
             if ( newCDIavailed == true )
@@ -893,15 +781,11 @@ void DShowCamera::EnermateDevice( DeviceInfos* retDeviceInfos )
                 camDevInfo.push_back( newCDI );
             }
 
-            // release
             _SafeRelease( pMoniker );
-            _SafeRelease( pPropertyBag );
 
             idx++;
         }
-
-        _SafeRelease( pCDevEnum );
-
+        
         if ( retDeviceInfos != NULL )
         {
             retDeviceInfos->assign( camDevInfo.begin(),
@@ -909,6 +793,7 @@ void DShowCamera::EnermateDevice( DeviceInfos* retDeviceInfos )
         }
 
         _SafeRelease( pEnumMoniker );
+        _SafeRelease( pCDevEnum );
     }
 }
 
@@ -1004,9 +889,7 @@ bool DShowCamera::SelectConfig( size_t idx )
                             dxdsprop->pSGrabber->SetBufferSamples( FALSE );
                             dxdsprop->pSGrabber->SetCallback( NULL, 1 );
 
-                            delete pSGCB;
-                            pSGCB = NULL;
-                            pSGCB = new SampleGrabberCallback( cfgitems[idx].encodedtype );
+                            pSGCB->SetEncodeType( cfgitems[idx].encodedtype );
 
                             if ( pSGCB != NULL )
                             {
@@ -1049,11 +932,20 @@ bool DShowCamera::SelectConfig( size_t idx )
 
 bool DShowCamera::CloseDevice()
 {
+    StopPoll();
+
     if ( dxdsprop != NULL )
     {
         delete dxdsprop;
         dxdsprop = NULL;
     }
+
+    bConfigured = false;
+    bPolling = false;
+    currentcfgidx = -1;
+    currentcamidx = -1;
+    cfgitems.clear();
+    resetDeviceSettings();
 
     return true;
 }
@@ -2051,8 +1943,11 @@ bool DShowCamera::configureDevice()
                 wchar_t tmpfn[40] = {0};
                 
                 // Find Event Trigger.
-                dxdsprop->pGraph->QueryInterface( IID_IMediaEvent,
-                                                  (LPVOID*)&dxdsprop->pEventTrigger );
+                if ( dxdsprop->pEventTrigger == NULL )
+                {
+                    dxdsprop->pGraph->QueryInterface( IID_IMediaEvent,
+                                                      (LPVOID*)&dxdsprop->pEventTrigger );
+                }
 
                 if ( dxdsprop->pControl == NULL )
                 {
@@ -2081,7 +1976,8 @@ bool DShowCamera::configureDevice()
                     {
                         dxdsprop->\
                         pGrabberFilter->\
-                        QueryInterface( IID_ISampleGrabber, (LPVOID*)&dxdsprop->pSGrabber );
+                        QueryInterface( IID_ISampleGrabber, 
+                                        (LPVOID*)&dxdsprop->pSGrabber );
                     }
                 }
 
@@ -2092,6 +1988,11 @@ bool DShowCamera::configureDevice()
                                       CLSCTX_INPROC_SERVER,
                                       IID_ICaptureGraphBuilder2,
                                       (LPVOID *)&dxdsprop->pCGB );
+                }
+                
+                if ( dxdsprop->pCGB != NULL )
+                {
+                     dxdsprop->pCGB->SetFiltergraph( dxdsprop->pGraph );
                 }
 
                 IEnumPins* pEnum = NULL;
@@ -2135,10 +2036,6 @@ bool DShowCamera::configureDevice()
                                     dxdsprop->pGrabberFilter,
                                     dxdsprop->pNullFilter );
                 }
-
-                // Find Event Trigger.
-                dxdsprop->pGraph->QueryInterface( IID_IMediaEvent,
-                                                  (LPVOID*)&dxdsprop->pEventTrigger );
             }
 
             if ( dxdsprop->pSGrabber != NULL )
@@ -2447,4 +2344,15 @@ void DShowCamera::enumerateConfigs()
             _SafeRelease( pConfig );
         }
     }
+}
+
+
+void DShowCamera::InitInstance()
+{
+    _Initialize_DSHOWCOMOBJ();
+}
+
+void DShowCamera::ReleaseInstance()
+{
+    _Finalize_DSHOWCOMOBJ();    
 }

@@ -1,3 +1,6 @@
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include "dshowcamtk.h"
 
 namespace dshowcamtk
@@ -88,7 +91,7 @@ namespace dshowcamtk
             if (bFound)
             {
                 *ppPin = pPin;
-                (*ppPin)->AddRef();
+                pPin = NULL;
                 break;
             }
 
@@ -196,5 +199,139 @@ namespace dshowcamtk
             _FreeMediaType(*pmt);
             CoTaskMemFree(pmt);
         }
+    }
+    
+    const char* GUID2str(GUID guid)
+    {
+        static char retstr[128] = {0};
+
+        snprintf( retstr, 128,
+                  "{%08lX-%04hX-%04hX-%02hhX%02hhX-"
+                  "%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX}",
+                  guid.Data1,
+                  guid.Data2,
+                  guid.Data3,
+                  guid.Data4[0],
+                  guid.Data4[1],
+                  guid.Data4[2],
+                  guid.Data4[3],
+                  guid.Data4[4],
+                  guid.Data4[5],
+                  guid.Data4[6],
+                  guid.Data4[7] );
+
+        return retstr;
+    }
+
+    void PrintMediaType(int idx, AM_MEDIA_TYPE* pmt)
+    {
+        if ( pmt != NULL )
+        {
+            if ( pmt->majortype == MEDIATYPE_Video )
+            {
+                VIDEOINFOHEADER *pVih = (VIDEOINFOHEADER*)pmt->pbFormat;
+
+                RECT rectsrc = pVih->rcSource;
+                DWORD bitrate = pVih->dwBitRate;
+
+                LONG width = pVih->bmiHeader.biWidth;
+                LONG height = pVih->bmiHeader.biHeight;
+                WORD bpp    = pVih->bmiHeader.biBitCount;
+
+                const char* strSub   = "none";
+
+                if ( pmt->subtype == MEDIASUBTYPE_YUYV )
+                    strSub = "YUYV";
+                else
+                if ( pmt->subtype == MEDIASUBTYPE_IYUV )
+                    strSub = "IYUV";
+                else
+                if ( pmt->subtype == MEDIASUBTYPE_YUY2 )
+                    strSub = "YUY2";
+                else
+                if ( pmt->subtype == MEDIASUBTYPE_YVYU )
+                    strSub = "YVYU";
+                else
+                if ( pmt->subtype == MEDIASUBTYPE_MJPG )
+                    strSub = "MJPG";
+                else
+                if ( pmt->subtype == MEDIASUBTYPE_RGB565 )
+                    strSub = "RGB565";
+                else
+                if ( pmt->subtype == MEDIASUBTYPE_RGB555 )
+                    strSub = "RGB555";
+                else
+                if ( pmt->subtype == MEDIASUBTYPE_RGB24 )
+                    strSub = "RGB24";
+                else
+                if ( pmt->subtype == MEDIASUBTYPE_Y8 )
+                    strSub = "Y8";
+                else
+                    strSub = GUID2str( pmt->subtype );
+
+                printf( "[%03d] Media sub type : %s, WxHxBPP = %dx%dx%u\n",
+                        idx,
+                        strSub,
+                        width,
+                        height,
+                        bpp );
+            }
+            else
+            {
+                fprintf( stderr,
+                         "Error: media major type is not video ! (%d)\n",
+                         pmt->majortype );
+            }
+        }
+    }
+
+    void DisconnectAllPins(ICaptureGraphBuilder2*& pGrp2)
+    {
+        if ( pGrp2 == NULL )
+        {
+            return;
+        }
+
+        IGraphBuilder* pGraph = NULL;
+
+        if ( FAILED( pGrp2->GetFiltergraph( &pGraph ) ) )
+        {
+            return;
+        }
+
+        IEnumFilters* pFilterEnum = NULL;
+
+        if ( SUCCEEDED( pGraph->EnumFilters( &pFilterEnum ) ) )
+        {
+            IBaseFilter* pFilter = NULL;
+
+            while ( pFilterEnum->Next( 1, &pFilter, NULL ) == S_OK )
+            {
+                IEnumPins* pPinEnum = NULL;
+
+                if ( SUCCEEDED( pFilter->EnumPins( &pPinEnum ) ) )
+                {
+                    IPin* pPin = NULL;
+
+                    while ( pPinEnum->Next( 1, &pPin, NULL ) == S_OK )
+                    {
+                        IPin* pConnectedPin = NULL;
+
+                        if ( SUCCEEDED( pPin->ConnectedTo( &pConnectedPin ) ) )
+                        {
+                            pGraph->Disconnect( pPin );
+                            pGraph->Disconnect( pConnectedPin );
+                            _SafeRelease( pConnectedPin );
+                        }
+                        
+                        _SafeRelease( pPin );
+                    }
+                    _SafeRelease( pPinEnum );
+                }
+                _SafeRelease( pFilter );
+            }
+            _SafeRelease( pFilterEnum );
+        }
+        _SafeRelease( pGraph );
     }
 }; /// of namepsace dshowcamtk.
