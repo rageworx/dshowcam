@@ -714,14 +714,14 @@ void DShowCamera::EnermateDevice( DeviceInfos* retDeviceInfos )
                 return;
             }
         }
-
+#ifdef DEBUG
         if (pEnumMoniker == NULL)
         {
             fprintf( stderr, "pEnumMoniker=%p, pCDevEnum=%p !\n", 
                      pEnumMoniker, pCDevEnum );
             return;
         }
-        
+#endif /// of DEBUG
         pEnumMoniker->Reset();
 
         IMoniker* pMoniker = NULL;
