@@ -40,7 +40,7 @@ static void _Initialize_DSHOWCOMOBJ()
 {
     if ( _COMOBJ_INIT == false )
     {
-        if ( CoInitialize(NULL) == S_OK )
+        if ( CoInitializeEx(NULL, COINIT_MULTITHREADED) == S_OK )
         {
             _COMOBJ_INIT = true;
         }
@@ -50,6 +50,12 @@ static void _Initialize_DSHOWCOMOBJ()
     {
         _COMOBJ_REFCOUNT++;
     }
+
+#ifdef DEBUG
+    printf( "(debug)_Initialize_DSHOWCOMOBJ() -> _COMOBJ_INIT = %u, _COMOBJ_REFCOUNT = %d\n",
+            (unsigned)_COMOBJ_INIT, _COMOBJ_REFCOUNT );
+    fflush( stdout );
+#endif
 }
 
 static void _Finalize_DSHOWCOMOBJ()
@@ -64,6 +70,12 @@ static void _Finalize_DSHOWCOMOBJ()
             _COMOBJ_INIT = false;
         }
     }
+#ifdef DEBUG
+    printf( "(debug)_Finalize_DSHOWCOMOBJ() -> _COMOBJ_INIT = %u, _COMOBJ_REFCOUNT = %d\n",
+            (unsigned)_COMOBJ_INIT, _COMOBJ_REFCOUNT );
+    fflush( stdout );
+#endif
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -103,7 +115,6 @@ class DxDShowProperties
             _SafeRelease(pEventTrigger);
             _SafeRelease(pControl);
             _SafeRelease(pVideoControl);
-            // _SafeRelease(pSGrabber);
 
             // Release the owning filter before the interface obtained from it.
             // With the SampleGrabber filter, IBaseFilter can still hold the last
@@ -585,7 +596,7 @@ class SampleGrabberCallback : public ISampleGrabberCB
                                                    imgWidth,
                                                    imgHeight );
                             break;
-                        #ifndef _MSC_VER
+#ifndef _MSC_VER
                         case DShowCamera::MJPEG:
                             GrabConvertedBufferSz = \
                                 mjpeg2rgb( pBuffer,
@@ -594,7 +605,7 @@ class SampleGrabberCallback : public ISampleGrabberCB
                                                    imgWidth,
                                                    imgHeight );
                             break;
-                        #endif /// of _MSC_VER
+#endif /// of _MSC_VER
                         case DShowCamera::BYPASS:
                             {
                                 GrabConvertedBuffer = new uint8_t[ BufferLen ];
@@ -681,6 +692,10 @@ DShowCamera::~DShowCamera()
     {
         delete dxdsprop;
         dxdsprop = NULL;
+#ifdef DEBUG
+        printf( "(deub)dxdsprop NULL at desctuctor.\n" );
+        fflush( stdout );
+#endif /// of DEBUG
     }
 
     if ( camDevInfo.size() > 0 ) camDevInfo.clear();
@@ -690,7 +705,10 @@ void DShowCamera::EnermateDevice( DeviceInfos* retDeviceInfos )
 {
     if ( _COMOBJ_INIT == true )
     {
-        if ( camDevInfo.size() > 0 ) camDevInfo.clear();
+        if ( camDevInfo.size() > 0 ) 
+        {
+            camDevInfo.clear();
+        }
 
         ICreateDevEnum* pCDevEnum = NULL;
         IEnumMoniker*   pEnumMoniker = NULL;
@@ -715,9 +733,19 @@ void DShowCamera::EnermateDevice( DeviceInfos* retDeviceInfos )
             }
         }
 #ifdef DEBUG
+        else
+        {
+            fprintf( stderr, 
+                     "CoCreateInstance CLSID_SystemDeviceEnum hr=0x%08lx pCDevEnum=%p\n",
+                     (unsigned long)hr, pCDevEnum );
+            fflush( stderr );
+        }
+#endif /// of DEBUG
+#ifdef DEBUG
         if (pEnumMoniker == NULL)
         {
-            fprintf( stderr, "pEnumMoniker=%p, pCDevEnum=%p !\n", 
+            fprintf( stderr, "Need to check each pointer of, "
+                     "pEnumMoniker=%p, pCDevEnum=%p !\n", 
                      pEnumMoniker, pCDevEnum );
             return;
         }
@@ -752,26 +780,24 @@ void DShowCamera::EnermateDevice( DeviceInfos* retDeviceInfos )
                 {
                     newCDI.name = var.bstrVal;
                     newCDIavailed = true;
+                    VariantClear(&var);
                 }
-                VariantClear(&var);
 
-                VariantInit(&var);
                 if ( SUCCEEDED(pPropertyBag->Read( L"Description", &var, 0 )) &&
                      var.vt == VT_BSTR && var.bstrVal != NULL )
                 {
                     newCDI.description = var.bstrVal;
                     newCDIavailed = true;
+                    VariantClear(&var);
                 }
-                VariantClear(&var);
 
-                VariantInit(&var);
                 if ( SUCCEEDED(pPropertyBag->Read( L"DevicePath", &var, 0 )) &&
                      var.vt == VT_BSTR && var.bstrVal != NULL )
                 {
                     newCDI.path = var.bstrVal;
                     newCDIavailed = true;
+                    VariantClear(&var);
                 }
-                VariantClear(&var);
 
                 _SafeRelease( pPropertyBag );
             }
@@ -938,6 +964,10 @@ bool DShowCamera::CloseDevice()
     {
         delete dxdsprop;
         dxdsprop = NULL;
+#ifdef DEBUG
+        printf( "(deub)dxdsprop NULL at DShowCamera::CloseDevice().\n" );
+        fflush( stdout );
+#endif /// of DEBUG #endif
     }
 
     bConfigured = false;
@@ -1595,6 +1625,10 @@ bool DShowCamera::ApplyAutoSetting( SETTING_TYPE settype )
 
 bool DShowCamera::StartPoll()
 {
+#ifdef DEBUG
+    printf( "(debug)DShowCamera::StartPoll()\n" );
+    fflush( stdout );
+#endif /// of DEBUG    
     if ( dxdsprop != NULL )
     {
         if ( dxdsprop->pControl != NULL )
@@ -1602,8 +1636,11 @@ bool DShowCamera::StartPoll()
             OAFilterState cstate = 0;
             unsigned retrying = 0;
 
+            bPolling = false;
+
             // test for running state ..
-            dxdsprop->pControl->GetState( DSHOWCAMTK_DEFAULT_TIMEOUT, &cstate );
+            dxdsprop->pControl->GetState( DSHOWCAMTK_DEFAULT_TIMEOUT, 
+                                          &cstate );
             if ( cstate == State_Running )
                 return true;
 
@@ -1618,6 +1655,9 @@ bool DShowCamera::StartPoll()
                     break;
 
                 retrying++;
+ #ifdef DEBUG
+                fprintf( stderr, "Failed to set pControl->Run() ...\n" );
+ #endif /// of DEBUG
             }
 
             retrying = 0;
@@ -1625,20 +1665,51 @@ bool DShowCamera::StartPoll()
             // Let try 100 times !
             while( retrying < 100 )
             {
-                dxdsprop->pControl->GetState( DSHOWCAMTK_DEFAULT_TIMEOUT, &cstate );
-
+                dxdsprop->pControl->GetState( DSHOWCAMTK_DEFAULT_TIMEOUT, 
+                                              &cstate );
                 if ( cstate == State_Running )
                 {
                     bPolling = true;
+#ifdef DEBUG
+                    printf( "(debug)pControl running state OK (%u)\n",
+                            (unsigned)bPolling );
+                    fflush( stdout );
+#endif /// of DEBUG
                     break;
                 }
 
                 retrying ++;
             }
 
+            if ( cstate != State_Running )
+            {
+#ifdef DEBUG
+                fprintf( stderr, 
+                         "Failed to control state set to running (%u).\n",
+                         retrying ); 
+                fflush( stderr );
+#endif /// of DEBUG
+            }
+
             return bPolling;
         }
+#ifdef DEBUG
+        else
+        {
+            fprintf( stderr, 
+                     "dxdsprop->pControl == NULL !\n" );
+            fflush( stderr );
+        }
+#endif /// of DEBUG
     }
+#ifdef DEBUG
+    else
+    {
+        fprintf( stderr, 
+                 "dxdsprop == NULL !\n" );
+        fflush( stderr );
+    }
+#endif /// of DEBUG
 
     return false;
 }
@@ -1671,6 +1742,11 @@ bool DShowCamera::StopPoll()
 
     return false;
 }
+        
+bool DShowCamera::IsPolling()
+{
+    return bPolling;
+}
 
 bool DShowCamera::SetGrabRaw( bool onoff )
 {
@@ -1701,7 +1777,8 @@ bool DShowCamera::GrabAFrame( uint8_t* &buff, size_t &bufflen )
         {
             OAFilterState cstate = 0;
 
-            dxdsprop->pControl->GetState( DSHOWCAMTK_DEFAULT_TIMEOUT, &cstate );
+            dxdsprop->pControl->GetState( DSHOWCAMTK_DEFAULT_TIMEOUT, 
+                                          &cstate );
 
             if ( cstate == State_Running )
             {
@@ -1755,7 +1832,8 @@ bool DShowCamera::GrabTriggered( uint8_t* &buff, size_t &bufflen )
                                    VideoControlFlag_Trigger;
 
                 dxdsprop->pSGrabber->SetOneShot( TRUE );
-                dxdsprop->pVideoControl->SetMode( pCameraStillPin, triggermode );
+                dxdsprop->pVideoControl->SetMode( pCameraStillPin, 
+                                                  triggermode );
 
                 if( StartPoll() == true )
                 {
@@ -1811,11 +1889,33 @@ bool DShowCamera::GrabTriggered( uint8_t* &buff, size_t &bufflen )
 
 bool DShowCamera::initDevice( size_t idx )
 {
+#ifdef DEBUG
+    printf( "(debug)DShowCamera::initDevice( %zu )\n", idx );
+    fflush( stdout );
+#endif    
     if ( _COMOBJ_INIT == false )
+    {
+#ifdef DEBUG
+        fprintf( stderr,
+                 "DShowCamera::initDevice( %zu ) failure by %s\n",
+                 idx,
+                 " _COMOBJ_INIT == false" );
+        fflush( stdout );
+#endif /// of DEBUG
         return false;
+    }
 
     if ( dxdsprop != NULL )
+    {
+#ifdef DEBUG
+        fprintf( stderr,
+                 "DShowCamera::initDevice( %zu ) failure by %s\n",
+                 idx,
+                 "dxdsprop != NULL" );
+        fflush( stdout );
+#endif /// of DEBUG
         return false;
+    }
 
     dxdsprop = new DxDShowProperties();
     if( dxdsprop != NULL )
@@ -1835,12 +1935,27 @@ bool DShowCamera::initDevice( size_t idx )
             {
                 currentcamidx = idx;
                 enumerateConfigs();
-                retb = configureDevice();
+                retb = configureDevice();                
+#ifdef DEBUG
+                printf( "(debug)dxdsprop = %p\n", dxdsprop );
+                fflush( stdout );
+#endif /// of DEBUG                
             }
         }
 
         return retb;
     }
+#ifdef DEBUG
+    else
+    {
+        fprintf( stderr,
+                 "DShowCamera::initDevice( %zu ) failure by %s\n",
+                 idx,
+                 "dxdsprop = new DxDShowProperties() == NULL ?" );
+        fflush( stdout );
+    }
+#endif /// of DEBUG
+    
 
     return false;
 }
@@ -1932,7 +2047,7 @@ bool DShowCamera::configureDevice()
             {
                 // CLSID_FilterGraph or ...
                 // CLSID_FilterGraphNoThread
-                CoCreateInstance( CLSID_FilterGraphNoThread,
+                CoCreateInstance( CLSID_FilterGraph,
                                   NULL,
                                   CLSCTX_INPROC_SERVER,
                                   IID_PPV_ARGS(&dxdsprop->pGraph) );
