@@ -117,6 +117,7 @@ class DShowCamera
         bool   ApplyAutoSetting( SETTING_TYPE settype );
         bool   StartPoll();
         bool   StopPoll();
+        bool   IsPolling();
         bool   SetGrabRaw( bool onoff );
         bool   GrabAFrame( uint8_t* &buff, size_t &bufflen );
         bool   GrabTriggered( uint8_t* &buff, size_t &bufflen );
